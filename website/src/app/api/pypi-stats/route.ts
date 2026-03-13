@@ -4,7 +4,11 @@ export async function GET() {
   try {
     const res = await fetch(
       "https://pypistats.org/api/packages/agentbudget/overall",
-      { cache: "no-store" }
+      {
+        cache: "no-store",
+        headers: { "User-Agent": "agentbudget-website/1.0" },
+        signal: AbortSignal.timeout(10000),
+      }
     );
     const data = await res.json();
     // Sum "with_mirrors" to match pepy.tech total
