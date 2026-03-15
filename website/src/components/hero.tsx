@@ -1,8 +1,8 @@
 "use client";
 
+import { GitHubStars, PyPIDownloads } from "@/components/github-stars";
 import Link from "next/link";
 import { useState } from "react";
-import { GitHubStars, PyPIDownloads } from "@/components/github-stars";
 
 export function Hero() {
   const [copied, setCopied] = useState(false);
@@ -31,7 +31,7 @@ export function Hero() {
 
         {/* Heading */}
         <h1 className="mb-6 max-w-3xl text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl md:text-6xl lg:text-[68px]">
-          <span className="text-gradient-hero-animated">AGENTBUDGET</span>
+          <span className="text-gradient-hero-animated">REAL-TIME</span>
           <br />
           <span className="text-gradient-hero-animated" style={{ animationDelay: "-1.5s" }}>
             COST ENFORCEMENT
