@@ -370,30 +370,80 @@ def test_anthropic_stream_wrapper_has_close():
     assert close_called == [True]
 
 
+@pytest.mark.asyncio
+async def test_openai_async_stream_wrapper_has_aclose():
+    """_AsyncOpenAIStreamWrapper exposes aclose() matching AsyncStream.close() interface."""
+    budget = AgentBudget(max_spend="$5.00")
+    async with budget.async_session() as session:
+        close_called = []
+
+        class FakeAsyncStreamWithClose:
+            def __aiter__(self):
+                return self
+            async def __anext__(self):
+                raise StopAsyncIteration
+            async def aclose(self):
+                close_called.append(True)
+
+        wrapped = _wrap_openai_async_stream(FakeAsyncStreamWithClose(), lambda: session)
+        assert hasattr(wrapped, "aclose")
+        await wrapped.aclose()
+
+    assert close_called == [True]
+
+
+@pytest.mark.asyncio
+async def test_anthropic_async_stream_wrapper_has_aclose():
+    """_AsyncAnthropicStreamWrapper exposes aclose() matching AsyncStream.close() interface."""
+    budget = AgentBudget(max_spend="$5.00")
+    async with budget.async_session() as session:
+        close_called = []
+
+        class FakeAsyncStreamWithClose:
+            def __aiter__(self):
+                return self
+            async def __anext__(self):
+                raise StopAsyncIteration
+            async def aclose(self):
+                close_called.append(True)
+
+        wrapped = _wrap_anthropic_async_stream(FakeAsyncStreamWithClose(), lambda: session)
+        assert hasattr(wrapped, "aclose")
+        await wrapped.aclose()
+
+    assert close_called == [True]
+
+
 # ---------------------------------------------------------------------------
 # Drop-in mode integration test
 # ---------------------------------------------------------------------------
 
 def test_dropin_patches_openai_streaming():
-    """agentbudget.init() wraps streaming OpenAI calls transparently."""
-    # Build a fake Completions class and mock stream return
-    FakeStream = mock.MagicMock()
-    FakeStream.__iter__ = mock.Mock(
-        return_value=iter(_openai_chunks("gpt-4o", 1000, 500))
-    )
+    """agentbudget.init() wraps streaming OpenAI calls; cost is tracked end-to-end."""
+    import sys, types
+    from unittest import mock
 
-    # We need to fake the openai.resources.chat.completions.Completions class
+    # Build a fake openai module with a Completions class whose create()
+    # returns a stream-like object (an instance of our fake Stream class).
     openai_mod = types.ModuleType("openai")
     resources_mod = types.ModuleType("openai.resources")
     chat_mod = types.ModuleType("openai.resources.chat")
     completions_mod = types.ModuleType("openai.resources.chat.completions")
 
+    # The fake Stream type — used for isinstance detection in _wrap_method
+    class FakeStream:
+        def __iter__(self):
+            return iter(_openai_chunks("gpt-4o", 1000, 500))
+
+    openai_mod.Stream = FakeStream
+    openai_mod.AsyncStream = type("AsyncStream", (), {})
+
     class FakeCompletions:
         @staticmethod
         def create(*args, **kwargs):
-            return FakeOpenAIChunk(model="gpt-4o", usage=None)
+            return FakeStream()  # returns a streaming response
 
-    completions_mod.Completions = FakeCompletions
+    completions_mod.Completions = FakeCompletions  # type: ignore[attr-defined]
 
     with mock.patch.dict(
         sys.modules,
@@ -404,14 +454,23 @@ def test_dropin_patches_openai_streaming():
             "openai.resources.chat.completions": completions_mod,
         },
     ):
-        # Also mock openai.Stream so isinstance check works
-        openai_mod.Stream = type("Stream", (), {})
-        openai_mod.AsyncStream = type("AsyncStream", (), {})
-
-        # The patched create should return a stream-like object
         session = agentbudget.init(budget="$5.00")
         try:
-            # Verify session is active
-            assert agentbudget.remaining() == 5.0
+            # Simulate a streaming call going through the patched method
+            from agentbudget._patch import _wrap_method
+            from agentbudget._global import _get_session
+            patched_create = _wrap_method(FakeCompletions.create, _get_session)
+            result = patched_create()
+
+            # result should be an _OpenAIStreamWrapper, not the raw FakeStream
+            from agentbudget._patch import _OpenAIStreamWrapper
+            assert isinstance(result, _OpenAIStreamWrapper), (
+                f"Expected _OpenAIStreamWrapper, got {type(result)}"
+            )
+
+            # Consuming the stream should record cost
+            list(result)
+            # gpt-4o: 1000 * 2.5e-6 + 500 * 10e-6 = 0.0075
+            assert agentbudget.spent() == pytest.approx(0.0075, rel=1e-4)
         finally:
             agentbudget.teardown()

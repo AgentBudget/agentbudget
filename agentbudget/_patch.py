@@ -6,23 +6,30 @@ is automatically tracked without any code changes.
 Streaming support
 -----------------
 When the patched method returns a streaming response (``openai.Stream`` or
-``anthropic.Stream``), the return value is replaced with a thin generator
-wrapper that:
+``anthropic.Stream``), the return value is replaced with a wrapper object that:
 
 1. Yields every chunk/event unchanged to the caller.
-2. After the caller exhausts the generator, records the accumulated cost to
+2. After the caller exhausts the iterator, records the accumulated cost to
    the active session.
+3. Supports both the for-loop and context-manager usage patterns.
 
 For OpenAI this relies on the caller setting
 ``stream_options={"include_usage": True}`` so that token usage appears on the
-final chunk.  If no usage chunk is present, cost tracking is silently skipped.
+final chunk.  If no usage chunk is present, cost tracking is silently skipped
+(no error, no partial cost).
 
 For Anthropic, token counts are collected from the ``message_start`` event
 (input tokens) and the ``message_delta`` event (output tokens).
+
+Note: if the stream raises an exception before the usage chunk is received,
+or if the consumer breaks out early, cost cannot be determined and is not
+recorded.  This is a protocol limitation — the usage data is only available
+at the end of the stream.
 """
 
 from __future__ import annotations
 
+import asyncio
 import functools
 import logging
 from typing import Any, Callable, Iterator, AsyncIterator, Optional
@@ -141,13 +148,7 @@ class _OpenAIStreamWrapper:
         return self
 
     def __exit__(self, *args: Any) -> None:
-        # Close the underlying stream if it supports it (connection cleanup)
-        close = getattr(self._stream, "close", None)
-        if close is not None:
-            try:
-                close()
-            except Exception:
-                pass
+        self.close()
 
     def close(self) -> None:
         """Close the underlying stream (matches Stream.close() interface)."""
@@ -215,10 +216,13 @@ class _AsyncOpenAIStreamWrapper:
         return self
 
     async def __aexit__(self, *args: Any) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Close the underlying stream (matches AsyncStream.close() interface)."""
         close = getattr(self._stream, "aclose", None) or getattr(self._stream, "close", None)
         if close is not None:
             try:
-                import asyncio
                 if asyncio.iscoroutinefunction(close):
                     await close()
                 else:
@@ -266,6 +270,14 @@ class _AnthropicStreamWrapper:
                         output_tokens = ot
             yield event
 
+        self._record_cost(model, input_tokens, output_tokens)
+
+    def _record_cost(
+        self,
+        model: Optional[str],
+        input_tokens: Optional[int],
+        output_tokens: Optional[int],
+    ) -> None:
         session = self._get_session()
         if (
             session is not None
@@ -283,12 +295,7 @@ class _AnthropicStreamWrapper:
         return self
 
     def __exit__(self, *args: Any) -> None:
-        close = getattr(self._stream, "close", None)
-        if close is not None:
-            try:
-                close()
-            except Exception:
-                pass
+        self.close()
 
     def close(self) -> None:
         """Close the underlying stream (matches Stream.close() interface)."""
@@ -352,10 +359,13 @@ class _AsyncAnthropicStreamWrapper:
         return self
 
     async def __aexit__(self, *args: Any) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Close the underlying stream (matches AsyncStream.close() interface)."""
         close = getattr(self._stream, "aclose", None) or getattr(self._stream, "close", None)
         if close is not None:
             try:
-                import asyncio
                 if asyncio.iscoroutinefunction(close):
                     await close()
                 else:
