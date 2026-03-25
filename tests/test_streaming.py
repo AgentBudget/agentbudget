@@ -279,6 +279,56 @@ async def test_anthropic_async_stream_records_cost():
 
 
 # ---------------------------------------------------------------------------
+# Context manager protocol tests
+# ---------------------------------------------------------------------------
+
+def test_openai_stream_supports_context_manager():
+    """Wrapper must support 'with create(stream=True) as stream:' pattern."""
+    budget = AgentBudget(max_spend="$5.00")
+    with budget.session() as session:
+        wrapped = _wrap_openai_stream(
+            _openai_chunks("gpt-4o", 1000, 500),
+            lambda: session,
+        )
+        with wrapped as stream:
+            chunks = list(stream)
+
+    assert len(chunks) == 3
+    assert session.spent == pytest.approx(0.0075, rel=1e-4)
+
+
+@pytest.mark.asyncio
+async def test_openai_async_stream_supports_context_manager():
+    """Async wrapper must support 'async with create(stream=True) as stream:' pattern."""
+    budget = AgentBudget(max_spend="$5.00")
+    async with budget.async_session() as session:
+        wrapped = _wrap_openai_async_stream(
+            _openai_async_chunks("gpt-4o", 1000, 500),
+            lambda: session,
+        )
+        async with wrapped as stream:
+            chunks = [chunk async for chunk in stream]
+
+    assert len(chunks) == 3
+    assert session.spent == pytest.approx(0.0075, rel=1e-4)
+
+
+def test_anthropic_stream_supports_context_manager():
+    """Anthropic wrapper must support context manager protocol."""
+    budget = AgentBudget(max_spend="$5.00")
+    with budget.session() as session:
+        wrapped = _wrap_anthropic_stream(
+            _anthropic_events("claude-3-5-sonnet-20241022", 1000, 500),
+            lambda: session,
+        )
+        with wrapped as stream:
+            events = list(stream)
+
+    assert len(events) == 4
+    assert session.spent == pytest.approx(0.0105, rel=1e-4)
+
+
+# ---------------------------------------------------------------------------
 # Drop-in mode integration test
 # ---------------------------------------------------------------------------
 
