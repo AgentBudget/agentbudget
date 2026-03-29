@@ -270,8 +270,9 @@ for chunk in stream:
 print(agentbudget.spent())  # cost recorded after stream exhausted`}</CodeBlock>
           <div className="mt-4 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-[13px] text-muted-foreground">
             <strong className="text-foreground">OpenAI note:</strong> You must pass{" "}
-            <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">stream_options={"{"}{"\""}include_usage{"\"": True}{"}"}</code>{" "}
-            for token counts to appear on the final chunk. Without it, streaming calls are silently tracked as <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">$0.00</code> — no error, just no cost.
+            <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">{'stream_options={"include_usage": True}'}</code>{" "}
+            for token counts to appear on the final chunk. Without it, streaming calls are silently tracked as{" "}
+            <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">$0.00</code> — no error, just no cost.
             Anthropic streams always include usage automatically.
           </div>
           <p className="mt-4 text-[14px] text-muted-foreground">
