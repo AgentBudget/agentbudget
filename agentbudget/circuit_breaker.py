@@ -34,7 +34,7 @@ class LoopDetector:
         ]
         self._call_log[key].append(now)
 
-        return len(self._call_log[key]) > self._config.max_repeated_calls
+        return len(self._call_log[key]) >= self._config.max_repeated_calls
 
     def reset(self) -> None:
         """Clear all recorded calls."""

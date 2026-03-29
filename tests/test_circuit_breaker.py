@@ -11,7 +11,7 @@ from agentbudget.circuit_breaker import (
 
 def test_loop_detector_no_loop():
     detector = LoopDetector(LoopDetectorConfig(max_repeated_calls=5))
-    for _ in range(5):
+    for _ in range(4):
         assert detector.record_call("tool_a") is False
 
 
@@ -19,16 +19,15 @@ def test_loop_detector_detects_loop():
     detector = LoopDetector(LoopDetectorConfig(max_repeated_calls=3))
     detector.record_call("tool_a")
     detector.record_call("tool_a")
-    detector.record_call("tool_a")
     assert detector.record_call("tool_a") is True
 
 
 def test_loop_detector_different_keys():
-    detector = LoopDetector(LoopDetectorConfig(max_repeated_calls=2))
+    detector = LoopDetector(LoopDetectorConfig(max_repeated_calls=3))
     detector.record_call("tool_a")
     detector.record_call("tool_b")
     detector.record_call("tool_a")
-    assert detector.record_call("tool_b") is False  # only 2, not > 2
+    assert detector.record_call("tool_b") is False  # only 2, not >= 3
 
 
 def test_loop_detector_reset():
@@ -77,6 +76,5 @@ def test_circuit_breaker_soft_limit_triggered_property():
 
 def test_circuit_breaker_check_loop():
     cb = CircuitBreaker(loop_config=LoopDetectorConfig(max_repeated_calls=2))
-    assert cb.check_loop("tool_x") is False
     assert cb.check_loop("tool_x") is False
     assert cb.check_loop("tool_x") is True
