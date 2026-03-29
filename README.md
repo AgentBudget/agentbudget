@@ -98,6 +98,7 @@ pip install agentbudget[langchain]
 | `agentbudget.remaining()` | Dollars left in the budget. |
 | `agentbudget.report()` | Full cost breakdown as a dict. |
 | `agentbudget.track(result, cost, tool_name)` | Manually track a tool/API call cost. |
+| `agentbudget.wrap_client(client, session)` | Attach tracking to a specific client instance only. |
 | `agentbudget.register_model(name, input, output)` | Add pricing for a new model at runtime. |
 | `agentbudget.register_models(dict)` | Batch register pricing for multiple models. |
 | `agentbudget.get_session()` | Get the active session for advanced use. |
@@ -106,6 +107,87 @@ pip install agentbudget[langchain]
 ---
 
 ## Features
+
+### Streaming Support
+
+Streaming responses (`stream=True`) are fully tracked. Cost is recorded after the stream is exhausted — chunks pass through to your code unchanged.
+
+```python
+# Drop-in mode — works automatically
+agentbudget.init("$5.00")
+client = openai.OpenAI()
+
+stream = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Summarize this report"}],
+    stream=True,
+    stream_options={"include_usage": True},  # required for OpenAI cost tracking
+)
+for chunk in stream:
+    print(chunk.choices[0].delta.content or "", end="")
+
+print(agentbudget.spent())  # cost recorded after stream exhausted
+```
+
+> **OpenAI note:** You must pass `stream_options={"include_usage": True}` for token counts to appear on the final chunk. Without it, streaming calls are silently tracked as `$0.00` (no error). Anthropic streams always include usage — no extra option needed.
+
+Async streaming works the same way:
+
+```python
+async for chunk in await client.chat.completions.create(stream=True, stream_options={"include_usage": True}, ...):
+    ...
+```
+
+---
+
+### Explicit Per-Client Tracking
+
+By default, `agentbudget.init()` patches all OpenAI/Anthropic calls globally. If you need finer control — multiple budgets, different clients per task, or just prefer explicit scope — use `wrap_client()`:
+
+```python
+from agentbudget import AgentBudget
+import agentbudget
+import openai
+
+budget = AgentBudget(max_spend="$5.00")
+with budget.session() as session:
+    # Only this client instance is tracked
+    client = agentbudget.wrap_client(openai.OpenAI(), session)
+    response = client.chat.completions.create(...)   # tracked
+
+    other = openai.OpenAI()
+    other.chat.completions.create(...)               # NOT tracked
+```
+
+Works with `openai.OpenAI`, `openai.AsyncOpenAI`, `anthropic.Anthropic`, and `anthropic.AsyncAnthropic`.
+
+---
+
+### Finalization Reserve
+
+Prevent your agent from being cut off mid-task. Reserve a fraction of the budget exclusively for the final response step:
+
+```python
+budget = AgentBudget(
+    max_spend="$1.00",
+    finalization_reserve=0.05,  # hard limit fires at $0.95, last $0.05 stays free
+)
+```
+
+For manual control, check before the final call:
+
+```python
+with budget.session() as session:
+    # ... do work ...
+
+    if session.would_exceed(estimated_final_cost):
+        return "Here's what I completed so far: ..."
+
+    # Safe to proceed — won't hit the hard limit
+    response = session.wrap(client.chat.completions.create(...))
+```
+
+---
 
 ### Circuit Breaker
 
@@ -246,6 +328,8 @@ agentbudget.register_models({
 ```
 
 Dated model variants (e.g. `gpt-4o-2025-06-15`) are automatically matched to their base model pricing.
+
+**OpenRouter** model names (e.g. `"openai/gpt-4o"`, `"anthropic/claude-3-5-sonnet"`) are supported — the provider prefix is stripped automatically before the pricing lookup.
 
 Missing a model from built-in pricing? PRs welcome — pricing data is in `agentbudget/pricing.py`.
 

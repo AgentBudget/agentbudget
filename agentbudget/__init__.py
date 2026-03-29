@@ -1,6 +1,6 @@
 """AgentBudget - Real-time cost enforcement for AI agent sessions."""
 
-__version__ = "0.2.3"
+__version__ = "0.3.0"
 
 from .budget import AgentBudget
 from .exceptions import AgentBudgetError, BudgetExhausted, InvalidBudget
