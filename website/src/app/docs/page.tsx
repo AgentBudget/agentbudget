@@ -24,6 +24,9 @@ const sidebarSections = [
   {
     title: "Features",
     items: [
+      { label: "Streaming", id: "streaming" },
+      { label: "Per-Client Tracking", id: "per-client" },
+      { label: "Finalization Reserve", id: "finalization-reserve" },
       { label: "Async Support", id: "async" },
       { label: "Nested Budgets", id: "nested-budgets" },
       { label: "Webhooks", id: "webhooks" },
@@ -153,6 +156,7 @@ agentbudget.teardown()  # Stop tracking, get final report`}</CodeBlock>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">agentbudget.remaining()</code></td><td className="py-2">Dollars left in the budget.</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">agentbudget.report()</code></td><td className="py-2">Full cost breakdown as a dict.</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">agentbudget.track(result, cost, tool_name)</code></td><td className="py-2">Manually track a tool/API call cost.</td></tr>
+                <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">agentbudget.wrap_client(client, session)</code></td><td className="py-2">Attach tracking to a specific client instance only.</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">agentbudget.register_model(name, input, output)</code></td><td className="py-2">Add pricing for a new model at runtime.</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">agentbudget.register_models(dict)</code></td><td className="py-2">Batch register pricing for multiple models.</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">agentbudget.get_session()</code></td><td className="py-2">Get the active session for advanced use.</td></tr>
@@ -243,6 +247,96 @@ AgentBudget(max_spend=5)`}</CodeBlock>
     "terminated_by": null,
     "events": [...]
 }`}</CodeBlock>
+
+          {/* Streaming */}
+          <h2 id="streaming" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
+            Streaming Support
+          </h2>
+          <p className="mb-4 text-[14px] text-muted-foreground">
+            Streaming responses (<code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">stream=True</code>) are fully tracked. Cost is recorded after the stream is exhausted — every chunk passes through to your code unchanged.
+          </p>
+          <CodeBlock>{`agentbudget.init("$5.00")
+client = openai.OpenAI()
+
+stream = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Summarize this report"}],
+    stream=True,
+    stream_options={"include_usage": True},  # required for OpenAI
+)
+for chunk in stream:
+    print(chunk.choices[0].delta.content or "", end="")
+
+print(agentbudget.spent())  # cost recorded after stream exhausted`}</CodeBlock>
+          <div className="mt-4 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-[13px] text-muted-foreground">
+            <strong className="text-foreground">OpenAI note:</strong> You must pass{" "}
+            <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">stream_options={"{"}{"\""}include_usage{"\"": True}{"}"}</code>{" "}
+            for token counts to appear on the final chunk. Without it, streaming calls are silently tracked as <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">$0.00</code> — no error, just no cost.
+            Anthropic streams always include usage automatically.
+          </div>
+          <p className="mt-4 text-[14px] text-muted-foreground">
+            Both for-loop and context-manager patterns are supported, sync and async:
+          </p>
+          <CodeBlock>{`# async for
+async for chunk in await client.chat.completions.create(
+    stream=True, stream_options={"include_usage": True}, ...
+):
+    process(chunk)
+
+# context manager
+with client.chat.completions.create(stream=True, ...) as stream:
+    for chunk in stream:
+        process(chunk)`}</CodeBlock>
+
+          {/* Per-Client Tracking */}
+          <h2 id="per-client" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
+            Per-Client Tracking
+          </h2>
+          <p className="mb-4 text-[14px] text-muted-foreground">
+            By default, <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">agentbudget.init()</code> patches all OpenAI/Anthropic calls globally. For finer control — multiple budgets, isolated clients, or production apps where global side effects are undesirable — use <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">wrap_client()</code>:
+          </p>
+          <CodeBlock>{`import agentbudget
+from agentbudget import AgentBudget
+import openai
+
+budget = AgentBudget(max_spend="$5.00")
+with budget.session() as session:
+    # Only this instance is tracked
+    client = agentbudget.wrap_client(openai.OpenAI(), session)
+    response = client.chat.completions.create(...)  # tracked
+
+    other = openai.OpenAI()
+    other.chat.completions.create(...)              # NOT tracked`}</CodeBlock>
+          <p className="mt-4 text-[14px] text-muted-foreground">
+            Works with <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">openai.OpenAI</code>, <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">openai.AsyncOpenAI</code>, <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">anthropic.Anthropic</code>, and <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">anthropic.AsyncAnthropic</code>.
+            Global patching via <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">init()</code> is unchanged — both approaches coexist.
+          </p>
+
+          {/* Finalization Reserve */}
+          <h2 id="finalization-reserve" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
+            Finalization Reserve
+          </h2>
+          <p className="mb-4 text-[14px] text-muted-foreground">
+            Prevent your agent from being cut off mid-task. Reserve a fraction of the budget exclusively for the final response step — the hard limit fires early, keeping that slice free.
+          </p>
+          <CodeBlock>{`budget = AgentBudget(
+    max_spend="$1.00",
+    finalization_reserve=0.05,  # hard limit at $0.95, $0.05 reserved for final call
+)`}</CodeBlock>
+          <p className="mt-4 mb-3 text-[14px] text-muted-foreground">
+            For manual control, check before the final call with <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">session.would_exceed()</code>:
+          </p>
+          <CodeBlock>{`with budget.session() as session:
+    # ... do work ...
+
+    if session.would_exceed(estimated_final_cost):
+        return "Budget nearly exhausted — here is what was completed: ..."
+
+    # Safe to proceed
+    response = session.wrap(client.chat.completions.create(...))`}</CodeBlock>
+          <div className="mt-4 border-l-2 border-accent bg-accent/5 px-4 py-3 text-[13px] text-muted-foreground">
+            <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">would_exceed(cost)</code> checks against the remaining budget without recording anything. Use it as a pre-flight check before expensive final steps.
+          </div>
 
           {/* Async */}
           <h2 id="async" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
@@ -354,6 +448,7 @@ print(middleware.get_report())`}</CodeBlock>
     on_hard_limit: Callable = None,
     on_loop_detected: Callable = None,
     webhook_url: str = None,
+    finalization_reserve: float = 0.0,  # fraction of budget reserved for final step
 )`}</CodeBlock>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-[13px]">
@@ -375,6 +470,7 @@ print(middleware.get_report())`}</CodeBlock>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">.track(result, cost, tool_name)</code></td><td className="py-2">Record a tool call cost. Returns the result.</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">.track_tool(cost, tool_name)</code></td><td className="py-2">Decorator that tracks cost on every call.</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">.child_session(max_spend)</code></td><td className="py-2">Create child session with sub-budget. Costs roll up.</td></tr>
+                <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">.would_exceed(cost)</code></td><td className="py-2">Returns True if cost would exceed the remaining budget. Does not record anything.</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">.report()</code></td><td className="py-2">Full cost report as a dict.</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">.spent</code></td><td className="py-2">Total dollars spent (float).</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">.remaining</code></td><td className="py-2">Dollars remaining (float).</td></tr>
@@ -479,7 +575,7 @@ agentbudget.register_model(
           </p>
 
           <div className="border-l-2 border-accent bg-accent/5 px-4 py-3 text-[13px] text-muted-foreground">
-            <strong className="text-foreground">Resolution order:</strong> Custom pricing (via <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">register_model</code>) → Built-in table → Fuzzy match (strip date suffixes).
+            <strong className="text-foreground">Resolution order:</strong> Custom pricing (via <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">register_model</code>) → Built-in table → Fuzzy match (strip date suffixes) → OpenRouter prefix strip (<code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">"openai/gpt-4o"</code> → <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">"gpt-4o"</code>).
           </div>
 
           {/* Exceptions */}

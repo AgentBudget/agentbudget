@@ -24,6 +24,9 @@ const sidebarSections = [
   {
     title: "Features",
     items: [
+      { label: "Streaming", id: "streaming" },
+      { label: "Per-Client Tracking", id: "per-client" },
+      { label: "Finalization Reserve", id: "finalization-reserve" },
       { label: "Async Support", id: "async" },
       { label: "Nested Budgets", id: "nested-budgets" },
       { label: "Webhooks", id: "webhooks" },
