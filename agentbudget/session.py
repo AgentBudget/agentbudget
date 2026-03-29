@@ -6,6 +6,7 @@ import time
 from typing import Any, Optional, TypeVar
 
 from .circuit_breaker import CircuitBreaker
+from .exceptions import BudgetExhausted
 from .ledger import Ledger
 from .pricing import calculate_llm_cost
 from .types import CostEvent, CostType, generate_session_id
@@ -184,11 +185,11 @@ class BudgetSession:
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self._end_time = time.time()
-        if exc_type and exc_type.__name__ == "BudgetExhausted":
+        if exc_type and issubclass(exc_type, BudgetExhausted):
             self._terminated_by = "budget_exhausted"
             if self._on_hard_limit:
                 self._on_hard_limit(self.report())
-        elif exc_type and exc_type.__name__ == "LoopDetected":
+        elif exc_type and issubclass(exc_type, LoopDetected):
             self._terminated_by = "loop_detected"
 
         # Roll up child spend to parent
