@@ -4,6 +4,7 @@ import { useState } from "react";
 
 const tabs = [
   { label: "Drop-in Mode", accent: "text-accent-bright", borderColor: "border-accent" },
+  { label: "Streaming", accent: "text-accent-bright", borderColor: "border-accent" },
   { label: "Manual Session", accent: "text-accent-bright", borderColor: "border-accent" },
   { label: "Async Agent", accent: "text-accent-bright", borderColor: "border-accent" },
   { label: "Nested Budgets", accent: "text-accent-bright", borderColor: "border-accent" },
@@ -29,6 +30,28 @@ print(agentbudget.remaining())   # 4.9965
 print(agentbudget.report())      # Full cost breakdown
 
 agentbudget.teardown()`,
+
+  // Streaming
+  `import agentbudget
+import openai
+
+agentbudget.init("$5.00")
+client = openai.OpenAI()
+
+# stream=True is fully tracked — chunks pass through unchanged
+stream = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Summarize this report"}],
+    stream=True,
+    stream_options={"include_usage": True},  # required for OpenAI
+)
+
+for chunk in stream:
+    print(chunk.choices[0].delta.content or "", end="")
+
+# Cost recorded after stream exhausted
+print(agentbudget.spent())   # e.g. 0.0042
+print(agentbudget.remaining())`,
 
   // Manual Session
   `from agentbudget import AgentBudget

@@ -43,7 +43,7 @@ const features = [
       </svg>
     ),
     title: "Multi-Provider",
-    description: "Built-in pricing for 30+ models across OpenAI, Anthropic, Google, Mistral, and Cohere.",
+    description: "Built-in pricing for 40+ models across OpenAI, Anthropic, Google, Mistral, and Cohere. OpenRouter supported.",
     href: "/docs#supported-models",
     accent: "orange",
   },
@@ -108,6 +108,31 @@ const features = [
     description: "No Redis. No servers. No cloud account. Pure Python library that runs in your process.",
     href: "/docs",
     accent: "blue",
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+        <polyline points="17 6 23 6 23 12" />
+      </svg>
+    ),
+    title: "Streaming Support",
+    description: "stream=True calls are fully tracked. Cost recorded after iterator exhaustion — chunks pass through unchanged.",
+    href: "/docs#streaming",
+    accent: "green",
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+    ),
+    title: "Finalization Reserve",
+    description: "Reserve a budget fraction for the final response. Agents finish their last step instead of being cut off mid-task.",
+    href: "/docs#finalization-reserve",
+    accent: "orange",
   },
 ];
 
