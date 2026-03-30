@@ -5,6 +5,7 @@ import { CodeExamples } from "@/components/code-examples";
 import { Problems } from "@/components/problems";
 import { Features } from "@/components/features";
 import { ActivityLog } from "@/components/activity-log";
+import { VideoSection } from "@/components/video-section";
 import { CTA } from "@/components/cta";
 import { StarHistory } from "@/components/star-history";
 import { Footer } from "@/components/footer";
@@ -20,6 +21,7 @@ export default function Home() {
         <Problems />
         <Features />
         <ActivityLog />
+        <VideoSection />
         <StarHistory />
         <CTA />
         <Footer />
