@@ -1,0 +1,63 @@
+{
+  "name": "agentbudget",
+  "version": "0.3.0",
+  "description": "Real-time cost enforcement for AI agent sessions — works with OpenAI and Anthropic",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "budget",
+    "cost",
+    "openai",
+    "anthropic",
+    "llm",
+    "cost-tracking"
+  ],
+  "author": "AgentBudget",
+  "license": "Apache-2.0",
+  "homepage": "https://agentbudget.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AgentBudget/agentbudget.git",
+    "directory": "sdks/typescript"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.37",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": ">=0.20.0",
+    "openai": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "openai": {
+      "optional": true
+    },
+    "@anthropic-ai/sdk": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
