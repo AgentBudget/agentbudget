@@ -116,7 +116,7 @@ export function GoClones() {
 
   return (
     <a
-      href="https://pkg.go.dev/agentbudget.dev/go"
+      href="https://pkg.go.dev/github.com/AgentBudget/agentbudget/sdks/go"
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1.5 border border-border bg-surface px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:border-border-bright hover:text-foreground hover:no-underline"
