@@ -2,7 +2,7 @@
 
 Real-time cost enforcement for AI agent sessions — TypeScript/JavaScript edition.
 
-[![npm](https://img.shields.io/npm/v/agentbudget)](https://www.npmjs.com/package/agentbudget)
+[![npm](https://img.shields.io/npm/v/@agentbudget/agentbudget)](https://www.npmjs.com/package/@agentbudget/agentbudget)
 [![License](https://img.shields.io/github/license/AgentBudget/agentbudget)](https://github.com/AgentBudget/agentbudget/blob/main/LICENSE)
 
 ---
@@ -10,7 +10,7 @@ Real-time cost enforcement for AI agent sessions — TypeScript/JavaScript editi
 ## Install
 
 ```bash
-npm install agentbudget
+npm install @agentbudget/agentbudget
 ```
 
 Works with `openai` ≥ 4.0 and `@anthropic-ai/sdk` ≥ 0.20 (both optional peer dependencies).

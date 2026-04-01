@@ -4,14 +4,14 @@
 
 [![PyPI](https://img.shields.io/pypi/v/agentbudget)](https://pypi.org/project/agentbudget/)
 [![Python](https://img.shields.io/pypi/pyversions/agentbudget)](https://pypi.org/project/agentbudget/)
-[![npm](https://img.shields.io/npm/v/agentbudget)](https://www.npmjs.com/package/agentbudget)
+[![npm](https://img.shields.io/npm/v/@agentbudget/agentbudget)](https://www.npmjs.com/package/@agentbudget/agentbudget)
 [![Go Reference](https://pkg.go.dev/badge/github.com/AgentBudget/agentbudget/sdks/go.svg)](https://pkg.go.dev/github.com/AgentBudget/agentbudget/sdks/go)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/agentbudget?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=py+downloads)](https://pepy.tech/projects/agentbudget)
-[![npm Downloads](https://img.shields.io/npm/dt/agentbudget?label=npm+downloads&color=green)](https://www.npmjs.com/package/agentbudget)
+[![npm Downloads](https://img.shields.io/npm/dt/@agentbudget/agentbudget?label=npm+downloads&color=green)](https://www.npmjs.com/package/@agentbudget/agentbudget)
 [![Go Reference](https://pkg.go.dev/badge/github.com/AgentBudget/agentbudget/sdks/go.svg)](https://pkg.go.dev/github.com/AgentBudget/agentbudget/sdks/go)
 [![License](https://img.shields.io/github/license/AgentBudget/agentbudget)](https://github.com/AgentBudget/agentbudget/blob/main/LICENSE)
 
-[Website](https://agentbudget.dev) · [Docs](https://agentbudget.dev/docs) · [PyPI](https://pypi.org/project/agentbudget/) · [npm](https://www.npmjs.com/package/agentbudget) · [Go](https://pkg.go.dev/github.com/AgentBudget/agentbudget/sdks/go) · [GitHub](https://github.com/AgentBudget/agentbudget)
+[Website](https://agentbudget.dev) · [Docs](https://agentbudget.dev/docs) · [PyPI](https://pypi.org/project/agentbudget/) · [npm](https://www.npmjs.com/package/@agentbudget/agentbudget) · [Go](https://pkg.go.dev/agentbudget.dev/go) · [GitHub](https://github.com/AgentBudget/agentbudget)
 
 ---
 
