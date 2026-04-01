@@ -1,6 +1,6 @@
 "use client";
 
-import { GitHubStars, PyPIDownloads } from "@/components/github-stars";
+import { GitHubStars, PyPIDownloads, NpmDownloads } from "@/components/github-stars";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -38,6 +38,7 @@ export function Hero() {
           </div>
           <GitHubStars />
           <PyPIDownloads />
+          <NpmDownloads />
         </div>
 
         {/* Heading */}

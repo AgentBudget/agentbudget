@@ -38,17 +38,26 @@ export function GitHubStars() {
   );
 }
 
+function fmt(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+const DownloadIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+  </svg>
+);
+
 export function PyPIDownloads() {
-  const [downloads, setDownloads] = useState<string | null>(null);
+  const [downloads, setDownloads] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/pypi-stats")
       .then((res) => res.json())
       .then((data) => {
-        if (typeof data?.downloads === "number") {
-          const count = data.downloads;
-          setDownloads(count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count));
-        }
+        if (typeof data?.downloads === "number") setDownloads(data.downloads);
       })
       .catch(() => {});
   }, []);
@@ -60,11 +69,70 @@ export function PyPIDownloads() {
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1.5 border border-border bg-surface px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:border-border-bright hover:text-foreground hover:no-underline"
     >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-      </svg>
-      <span className="font-mono">{downloads ?? "--"}</span>
+      <DownloadIcon />
+      <span className="font-mono text-[10px] text-muted">py</span>
+      <span className="font-mono">{downloads !== null ? fmt(downloads) : "--"}</span>
       <span className="text-muted">installs</span>
+    </a>
+  );
+}
+
+export function NpmDownloads() {
+  const [downloads, setDownloads] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/npm-stats")
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof data?.downloads === "number") setDownloads(data.downloads);
+      })
+      .catch(() => {});
+  }, []);
+
+  return (
+    <a
+      href="https://www.npmjs.com/package/agentbudget"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 border border-border bg-surface px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:border-border-bright hover:text-foreground hover:no-underline"
+    >
+      <DownloadIcon />
+      <span className="font-mono text-[10px] text-muted">npm</span>
+      <span className="font-mono">{downloads !== null ? fmt(downloads) : "--"}</span>
+      <span className="text-muted">installs</span>
+    </a>
+  );
+}
+
+export function TotalInstalls() {
+  const [pypi, setPypi] = useState<number | null>(null);
+  const [npm, setNpm] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/pypi-stats")
+      .then((r) => r.json())
+      .then((d) => { if (typeof d?.downloads === "number") setPypi(d.downloads); })
+      .catch(() => {});
+    fetch("/api/npm-stats")
+      .then((r) => r.json())
+      .then((d) => { if (typeof d?.downloads === "number") setNpm(d.downloads); })
+      .catch(() => {});
+  }, []);
+
+  const total = pypi !== null || npm !== null
+    ? (pypi ?? 0) + (npm ?? 0)
+    : null;
+
+  return (
+    <a
+      href="https://pepy.tech/projects/agentbudget"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 border border-border bg-surface px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:border-border-bright hover:text-foreground hover:no-underline"
+    >
+      <DownloadIcon />
+      <span className="font-mono">{total !== null ? fmt(total) : "--"}</span>
+      <span className="text-muted">total installs</span>
     </a>
   );
 }
