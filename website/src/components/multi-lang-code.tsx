@@ -31,11 +31,12 @@ export function MultiLangCode({
 }: MultiLangCodeProps) {
   const [active, setActive] = useState<DocLang>(defaultLang);
 
-  const tabs: { lang: DocLang; code: string; syntaxLang: string; available: boolean }[] = [
+  const allTabs: { lang: DocLang; code: string; syntaxLang: string; available: boolean }[] = [
     { lang: "Python", code: python, syntaxLang: pythonLang, available: true },
     { lang: "Go", code: go ?? COMING_SOON, syntaxLang: goLang, available: !!go },
     { lang: "TypeScript", code: typescript ?? COMING_SOON, syntaxLang: tsLang, available: !!typescript },
-  ].filter((t) => showAll || t.available);
+  ];
+  const tabs = allTabs.filter((t) => showAll || t.available);
 
   if (tabs.length === 1) {
     return <CodeBlock lang={tabs[0]!.syntaxLang}>{tabs[0]!.code}</CodeBlock>;
