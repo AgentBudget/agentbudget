@@ -1,6 +1,9 @@
+"use client";
+
 import { Nav } from "@/components/nav";
 import { CodeBlock } from "@/components/code-block";
 import { DocsMobileNav } from "@/components/docs-mobile-nav";
+import { MultiLangCode } from "@/components/multi-lang-code";
 
 const sidebarSections = [
   {
@@ -59,6 +62,24 @@ export default function DocsPage() {
       <div className="mx-auto flex max-w-[1200px]">
         {/* Sidebar */}
         <aside className="sticky top-14 hidden h-[calc(100vh-56px)] w-[220px] shrink-0 overflow-y-auto border-x border-border py-8 md:block">
+          {/* Language switcher */}
+          <div className="mb-6 border-b border-border pb-6">
+            <h4 className="mb-2 px-5 font-mono text-[10px] font-semibold uppercase tracking-widest text-muted">
+              Language
+            </h4>
+            <a href="#installation" className="flex items-center gap-2 px-5 py-1.5 text-[13px] text-accent-bright transition-colors hover:bg-surface hover:no-underline">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              Python
+            </a>
+            <a href="https://github.com/AgentBudget/agentbudget/tree/main/sdks/go" className="block px-5 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-surface hover:text-foreground hover:no-underline" target="_blank" rel="noopener noreferrer">
+              Go
+              <span className="ml-2 font-mono text-[10px] text-muted">↗</span>
+            </a>
+            <a href="https://github.com/AgentBudget/agentbudget/tree/main/sdks/typescript" className="block px-5 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-surface hover:text-foreground hover:no-underline" target="_blank" rel="noopener noreferrer">
+              TypeScript
+              <span className="ml-2 font-mono text-[10px] text-muted">↗</span>
+            </a>
+          </div>
           {sidebarSections.map((section) => (
             <div key={section.title} className="mb-6">
               <h4 className="mb-2 px-5 font-mono text-[10px] font-semibold uppercase tracking-widest text-muted">
@@ -90,12 +111,19 @@ export default function DocsPage() {
           <h2 id="installation" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
             Installation
           </h2>
-          <CodeBlock lang="bash">{`pip install agentbudget`}</CodeBlock>
+          <MultiLangCode
+            python={`pip install agentbudget`}
+            go={`go get github.com/AgentBudget/agentbudget/sdks/go`}
+            typescript={`npm install agentbudget`}
+            pythonLang="bash"
+            goLang="bash"
+            tsLang="bash"
+          />
           <p className="mt-4 text-[14px] text-muted-foreground">
-            Requires Python 3.9+. No external dependencies.
+            Python 3.9+ · Go 1.21+ · Node.js 18+. Zero external dependencies in all three SDKs.
           </p>
           <p className="mt-2 text-[14px] text-muted-foreground">
-            For LangChain integration:
+            For Python LangChain integration:
           </p>
           <CodeBlock lang="bash">{`pip install agentbudget[langchain]`}</CodeBlock>
 
@@ -167,7 +195,8 @@ agentbudget.teardown()  # Stop tracking, get final report`}</CodeBlock>
 
           {/* Manual Mode */}
           <h3 id="manual" className="mb-4 mt-10 text-lg font-semibold">Manual Mode</h3>
-          <CodeBlock>{`from agentbudget import AgentBudget
+          <MultiLangCode
+            python={`from agentbudget import AgentBudget
 
 budget = AgentBudget(max_spend="$5.00")
 
@@ -181,11 +210,43 @@ with budget.session() as session:
 
     data = session.track(call_serp_api(query), cost=0.01, tool_name="serp")
 
-    @session.track_tool(cost=0.02, tool_name="search")
-    def my_search(query):
-        return api.search(query)
+print(session.report())`}
+            go={`import agentbudget "github.com/AgentBudget/agentbudget/sdks/go"
 
-print(session.report())`}</CodeBlock>
+budget, _ := agentbudget.New("$5.00")
+session := budget.NewSession()
+defer session.Close()
+
+// After your OpenAI or Anthropic call:
+resp, _ := openaiClient.CreateChatCompletion(ctx, req)
+if err := session.WrapUsage(resp.Model,
+    int64(resp.Usage.PromptTokens),
+    int64(resp.Usage.CompletionTokens),
+); err != nil {
+    log.Fatal(err) // *agentbudget.BudgetExhausted or *agentbudget.LoopDetected
+}
+
+// Track a tool call:
+session.Track(0.01, "serp_api")
+
+fmt.Printf("%+v\\n", session.Report())`}
+            typescript={`import { AgentBudget } from "agentbudget";
+import OpenAI from "openai";
+
+const budget = new AgentBudget("$5.00");
+const session = budget.newSession();
+
+const resp = await new OpenAI().chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Analyze this..." }],
+});
+
+session.wrapOpenAI(resp);  // extracts model + tokens, records cost
+session.track(null, 0.01, "serp_api");  // track a tool call
+
+console.log(session.report());
+session.close();`}
+          />
 
           {/* Budget Envelope */}
           <h2 id="budget-envelope" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
@@ -406,7 +467,11 @@ async with budget.async_session() as session:
           {/* LangChain */}
           <h2 id="langchain" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
             LangChain Integration
+            <span className="ml-3 bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent-bright align-middle">Python only</span>
           </h2>
+          <p className="mb-4 text-[14px] text-muted-foreground">
+            Go and TypeScript integrations are coming in a future release.
+          </p>
           <CodeBlock lang="bash">{`pip install agentbudget[langchain]`}</CodeBlock>
           <CodeBlock>{`from agentbudget.integrations.langchain import LangChainBudgetCallback
 
@@ -422,7 +487,11 @@ print(callback.get_report())`}</CodeBlock>
           {/* CrewAI */}
           <h2 id="crewai" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
             CrewAI Integration
+            <span className="ml-3 bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent-bright align-middle">Python only</span>
           </h2>
+          <p className="mb-4 text-[14px] text-muted-foreground">
+            Go and TypeScript integrations are coming in a future release.
+          </p>
           <CodeBlock>{`from agentbudget.integrations.crewai import CrewAIBudgetMiddleware
 
 with CrewAIBudgetMiddleware(budget="$3.00") as middleware:
