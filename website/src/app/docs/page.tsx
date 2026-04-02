@@ -625,19 +625,35 @@ print(middleware.get_report())`}</CodeBlock>
           </p>
 
           <h3 className="mb-2 mt-6 text-sm font-semibold">Single model</h3>
-          <CodeBlock lang="python">{`import agentbudget
+          <MultiLangCode
+            python={`import agentbudget
 
 agentbudget.register_model(
     "gpt-5",
     input_price_per_million=5.00,
     output_price_per_million=20.00,
-)`}</CodeBlock>
+)`}
+            go={`import agentbudget "github.com/AgentBudget/agentbudget/sdks/go"
+
+agentbudget.RegisterModel("gpt-5", 5.00, 20.00)`}
+            typescript={`import { registerModel } from "@agentbudget/agentbudget";
+
+registerModel("gpt-5", 5.00, 20.00);`}
+          />
 
           <h3 className="mb-2 mt-6 text-sm font-semibold">Batch register</h3>
-          <CodeBlock lang="python">{`agentbudget.register_models({
+          <MultiLangCode
+            python={`agentbudget.register_models({
     "gpt-5": (5.00, 20.00),
     "gpt-5-mini": (0.50, 2.00),
-})`}</CodeBlock>
+})`}
+            go={`agentbudget.RegisterModel("gpt-5", 5.00, 20.00)
+agentbudget.RegisterModel("gpt-5-mini", 0.50, 2.00)`}
+            typescript={`import { registerModel } from "@agentbudget/agentbudget";
+
+registerModel("gpt-5", 5.00, 20.00);
+registerModel("gpt-5-mini", 0.50, 2.00);`}
+          />
 
           <h3 className="mb-2 mt-6 text-sm font-semibold">Fuzzy matching</h3>
           <p className="mb-3 text-[14px] text-muted-foreground">
