@@ -86,9 +86,9 @@ func TestWrapUsage_KnownModels(t *testing.T) {
 	// 1000 input + 500 output = 0.0025 + 0.005 = 0.0075
 	const gpt4oCost = 1000*2.50/1e6 + 500*10.00/1e6
 
-	// claude-opus-4-6: $15.00/M input, $75.00/M output
-	// 1000 input + 500 output = 0.015 + 0.0375 = 0.0525
-	const claudeOpusCost = 1000*15.00/1e6 + 500*75.00/1e6
+	// claude-opus-4-6: $5.00/M input, $25.00/M output
+	// 1000 input + 500 output = 0.005 + 0.0125 = 0.0175
+	const claudeOpusCost = 1000*5.00/1e6 + 500*25.00/1e6
 
 	cases := []struct {
 		name         string
@@ -687,9 +687,9 @@ func TestCalculateCost_TableDriven(t *testing.T) {
 		// gpt-4o-mini: $0.15/$0.60 per M
 		{"gpt-4o-mini", 1_000_000, 0, 0.15},
 		{"gpt-4o-mini", 0, 1_000_000, 0.60},
-		// claude-opus-4-6: $15.00/$75.00 per M
-		{"claude-opus-4-6", 1_000_000, 0, 15.00},
-		{"claude-opus-4-6", 0, 1_000_000, 75.00},
+		// claude-opus-4-6: $5.00/$25.00 per M
+		{"claude-opus-4-6", 1_000_000, 0, 5.00},
+		{"claude-opus-4-6", 0, 1_000_000, 25.00},
 	}
 
 	for _, tc := range cases {

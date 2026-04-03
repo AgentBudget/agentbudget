@@ -613,7 +613,7 @@ print(middleware.get_report())`}</CodeBlock>
           </div>
 
           <div className="border-l-2 border-accent bg-accent/5 px-4 py-3 text-[13px] text-muted-foreground">
-            Missing a model? Register it at runtime with <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">register_model()</code> or submit a PR to <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">agentbudget/pricing.py</code>.
+            Missing a model? Register it at runtime with <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">register_model()</code> or submit a PR to <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">pricing.json</code> and run <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">python scripts/generate_pricing.py</code>.
           </div>
 
           {/* Custom Model Pricing */}
