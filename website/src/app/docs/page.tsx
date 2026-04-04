@@ -694,7 +694,7 @@ registerModel("gpt-5-mini", 0.50, 2.00);`}
           </p>
 
           <div className="border-l-2 border-accent bg-accent/5 px-4 py-3 text-[13px] text-muted-foreground">
-            <strong className="text-foreground">Resolution order:</strong> Custom pricing (via <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">register_model</code>) → Built-in table → Fuzzy match (strip date suffixes) → OpenRouter prefix strip (<code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">"openai/gpt-4o"</code> → <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">"gpt-4o"</code>).
+            <strong className="text-foreground">Resolution order:</strong> Custom pricing (via <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">register_model</code>) → Built-in table → Fuzzy match (strip date suffixes) → OpenRouter prefix strip (<code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">&quot;openai/gpt-4o&quot;</code> → <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">&quot;gpt-4o&quot;</code>).
           </div>
 
           {/* Exceptions */}
