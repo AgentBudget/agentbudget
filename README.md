@@ -94,7 +94,7 @@ print(session.report())
 ```bash
 pip install agentbudget
 ```
-Python 3.9+. For LangChain integration: `pip install agentbudget[langchain]`
+Python 3.9+. For LangChain integration: `pip install agentbudget[langchain]`. For AutoGen integration: `pip install agentbudget[autogen]`.
 
 **Go**
 ```bash
@@ -338,6 +338,21 @@ from agentbudget.integrations.langchain import LangChainBudgetCallback
 callback = LangChainBudgetCallback(budget="$5.00")
 agent.run("Research competitors", callbacks=[callback])
 print(callback.get_report())
+```
+
+### AutoGen
+
+```bash
+pip install agentbudget[autogen]
+```
+
+```python
+from agentbudget.integrations.autogen import BudgetedAssistantAgent, BudgetedUserProxyAgent
+
+assistant = BudgetedAssistantAgent(name="assistant", budget="$5.00")
+user = BudgetedUserProxyAgent(name="user", budget="$5.00")
+user.initiate_chat(assistant, message="Research competitors in the CRM space")
+print(assistant.get_report())
 ```
 
 ### CrewAI

@@ -35,6 +35,7 @@ Changelog = "https://github.com/AgentBudget/agentbudget/releases"
 
 [project.optional-dependencies]
 langchain = ["langchain-core>=0.1.0"]
+autogen = ["pyautogen>=0.2.0"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
