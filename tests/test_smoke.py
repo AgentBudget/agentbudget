@@ -646,45 +646,50 @@ def test_teardown_returns_accurate_final_report():
 
 
 # ===========================================================================
-# 10. Concurrent real calls (thread safety)
+# 10. Concurrent real calls (context isolation)
 # ===========================================================================
 
 
 @_SKIP_OPENAI
-def test_concurrent_real_calls_are_tracked_correctly():
+def test_concurrent_thread_sessions_are_isolated():
     """
-    Two threads making real API calls through the same patched client should
-    each have their costs tracked without corruption.
-
-    NOTE: This test uses the global init() patch so both threads share
-    the same BudgetSession — the Ledger uses a threading.Lock internally.
+    Two threads calling agentbudget.init() independently should keep separate
+    sessions and reports, even though the SDK patch itself is process-wide.
     """
     import threading
     import openai
     import agentbudget
 
-    agentbudget.init(budget="$2.00")
-    client = openai.OpenAI()
     errors: list[Exception] = []
+    reports: list[dict] = []
 
-    def make_call():
+    def make_call(session_id: str):
         try:
+            agentbudget.init(budget="$1.00", session_id=session_id)
+            client = openai.OpenAI()
             client.chat.completions.create(
                 model=_OPENAI_CHEAP_MODEL,
                 messages=[{"role": "user", "content": "Say one word."}],
                 max_tokens=3,
             )
+            report = agentbudget.teardown()
+            assert report is not None
+            reports.append(report)
         except Exception as e:
             errors.append(e)
+            agentbudget.teardown()
 
-    threads = [threading.Thread(target=make_call) for _ in range(2)]
+    threads = [
+        threading.Thread(target=make_call, args=("thread_a",)),
+        threading.Thread(target=make_call, args=("thread_b",)),
+    ]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
 
     assert not errors, f"Thread errors: {errors}"
-
-    r = agentbudget.report()
-    assert r["breakdown"]["llm"]["calls"] == 2
-    assert r["total_spent"] > 0
+    assert len(reports) == 2
+    assert {report["session_id"] for report in reports} == {"thread_a", "thread_b"}
+    assert all(report["breakdown"]["llm"]["calls"] == 1 for report in reports)
+    assert all(report["total_spent"] > 0 for report in reports)
