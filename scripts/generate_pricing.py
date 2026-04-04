@@ -22,7 +22,7 @@ TS_OUT = ROOT / "sdks" / "typescript" / "src" / "pricing.ts"
 
 
 def load_pricing() -> dict:
-    with open(PRICING_JSON) as f:
+    with open(PRICING_JSON, encoding="utf-8") as f:
         data = json.load(f)
     return data["models"]
 
@@ -469,7 +469,7 @@ def main() -> int:
         expected = gen_fn(models)
         if check_mode:
             try:
-                actual = path.read_text()
+                actual = path.read_text(encoding="utf-8")
             except FileNotFoundError:
                 print(f"FAIL: {path.relative_to(ROOT)} does not exist")
                 any_diff = True
@@ -480,7 +480,7 @@ def main() -> int:
             else:
                 print(f"  OK: {path.relative_to(ROOT)}")
         else:
-            path.write_text(expected)
+            path.write_text(expected, encoding="utf-8", newline="\n")
             print(f"Generated {path.relative_to(ROOT)}")
 
     if check_mode and any_diff:
