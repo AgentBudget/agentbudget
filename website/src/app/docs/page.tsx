@@ -41,6 +41,7 @@ const sidebarSections = [
     items: [
       { label: "LangChain", id: "langchain" },
       { label: "CrewAI", id: "crewai" },
+      { label: "AutoGen", id: "autogen" },
     ],
   },
   {
@@ -123,9 +124,10 @@ export default function DocsPage() {
             Python 3.9+ · Go 1.21+ · Node.js 18+. Zero external dependencies in all three SDKs.
           </p>
           <p className="mt-2 text-[14px] text-muted-foreground">
-            For Python LangChain integration:
+            Optional Python integrations:
           </p>
-          <CodeBlock lang="bash">{`pip install agentbudget[langchain]`}</CodeBlock>
+          <CodeBlock lang="bash">{`pip install agentbudget[langchain]   # LangChain / LangGraph
+pip install agentbudget[autogen]    # AutoGen`}</CodeBlock>
 
           {/* Quickstart */}
           <h2 id="quickstart" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
@@ -502,6 +504,37 @@ with CrewAIBudgetMiddleware(budget="$3.00") as middleware:
     )
 
 print(middleware.get_report())`}</CodeBlock>
+
+          {/* AutoGen */}
+          <h2 id="autogen" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
+            AutoGen Integration
+            <span className="ml-3 bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent-bright align-middle">Python only</span>
+          </h2>
+          <p className="mb-4 text-[14px] text-muted-foreground">
+            Drop-in subclasses for AutoGen agents with built-in budget enforcement and cost tracking.
+          </p>
+          <CodeBlock lang="bash">{`pip install agentbudget[autogen]`}</CodeBlock>
+          <CodeBlock>{`from agentbudget.integrations.autogen import BudgetedAssistantAgent, BudgetedUserProxyAgent
+
+assistant = BudgetedAssistantAgent(name="assistant", budget="$5.00")
+user = BudgetedUserProxyAgent(name="user", budget="$5.00")
+
+user.initiate_chat(
+    assistant,
+    message="Research competitors in the CRM space"
+)
+
+print(assistant.get_report())`}</CodeBlock>
+          <p className="mb-3 mt-4 text-[14px] text-muted-foreground">
+            For patching existing agent instances without subclassing:
+          </p>
+          <CodeBlock>{`from agentbudget.integrations.autogen import AutoGenBudgetTracker
+
+tracker = AutoGenBudgetTracker(budget="$5.00")
+tracker.attach(existing_assistant)
+
+# BudgetExhausted is raised automatically when the limit is hit
+print(tracker.get_report())`}</CodeBlock>
 
           {/* API Reference */}
           <h2 id="api-reference" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
