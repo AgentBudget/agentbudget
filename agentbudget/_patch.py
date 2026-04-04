@@ -205,58 +205,85 @@ class _AsyncOpenAIStreamWrapper:
         async with await client.chat.completions.create(stream=True) as stream:
             async for chunk in stream:
                 ...
+
+    State is stored on ``self`` so that ``aclose()`` / ``__aexit__`` can
+    record accumulated usage even when the caller breaks out of the loop
+    early.  The old ``_iterate()`` async-generator approach caused the
+    ``finally`` block to run inside a generator that was scheduled for
+    collection rather than running synchronously, which lost the cost.
     """
 
     def __init__(self, stream: Any, get_session: Callable) -> None:
         self._stream = stream
         self._get_session = get_session
+        self._aiter: Optional[Any] = None
+        # Accumulated usage state
+        self._model: Optional[str] = None
+        self._prompt_tokens: Optional[int] = None
+        self._completion_tokens: Optional[int] = None
+        self._cost_recorded: bool = False
 
-    async def _iterate(self) -> AsyncIterator:
-        model: Optional[str] = None
-        prompt_tokens: Optional[int] = None
-        completion_tokens: Optional[int] = None
+    def __aiter__(self) -> "_AsyncOpenAIStreamWrapper":
+        self._aiter = self._stream.__aiter__()
+        return self
 
+    async def __anext__(self) -> Any:
         try:
-            async for chunk in self._stream:
-                if model is None:
-                    model = getattr(chunk, "model", None)
-                usage = getattr(chunk, "usage", None)
-                if usage is not None:
-                    pt = getattr(usage, "prompt_tokens", None)
-                    ct = getattr(usage, "completion_tokens", None)
-                    if pt is not None:
-                        prompt_tokens = pt
-                    if ct is not None:
-                        completion_tokens = ct
-                yield chunk
-        finally:
-            self._record_cost(model, prompt_tokens, completion_tokens)
+            chunk = await self._aiter.__anext__()
+        except StopAsyncIteration:
+            self._record_cost()
+            raise
+        if self._model is None:
+            self._model = getattr(chunk, "model", None)
+        usage = getattr(chunk, "usage", None)
+        if usage is not None:
+            pt = getattr(usage, "prompt_tokens", None)
+            ct = getattr(usage, "completion_tokens", None)
+            if pt is not None:
+                self._prompt_tokens = pt
+            if ct is not None:
+                self._completion_tokens = ct
+        # Record eagerly once we have complete data so that a caller who
+        # breaks immediately after seeing the usage chunk still gets tracked.
+        if (
+            self._model
+            and self._prompt_tokens is not None
+            and self._completion_tokens is not None
+            and not self._cost_recorded
+        ):
+            self._record_cost()
+        return chunk
 
-    def _record_cost(
-        self,
-        model: Optional[str],
-        prompt_tokens: Optional[int],
-        completion_tokens: Optional[int],
-    ) -> None:
+    def _record_cost(self) -> None:
+        if self._cost_recorded:
+            return
+        self._cost_recorded = True
         session = self._get_session()
         if session is None:
             return
 
-        if model and prompt_tokens is not None and completion_tokens is not None:
+        if (
+            self._model
+            and self._prompt_tokens is not None
+            and self._completion_tokens is not None
+        ):
             try:
-                session.wrap(_FakeLLMResult(model, prompt_tokens, completion_tokens))
+                session.wrap(
+                    _FakeLLMResult(self._model, self._prompt_tokens, self._completion_tokens)
+                )
             except Exception:
                 logger.debug("Failed to track OpenAI async streaming cost", exc_info=True)
                 raise
             return
 
-        if model is not None or prompt_tokens is not None or completion_tokens is not None:
+        if (
+            self._model is not None
+            or self._prompt_tokens is not None
+            or self._completion_tokens is not None
+        ):
             logger.warning(
                 "OpenAI streaming call ended without complete usage data; cost was not tracked."
             )
-
-    def __aiter__(self) -> Any:  # type: ignore[misc]
-        return self._iterate().__aiter__()
 
     async def __aenter__(self) -> "_AsyncOpenAIStreamWrapper":
         return self
@@ -265,7 +292,8 @@ class _AsyncOpenAIStreamWrapper:
         await self.aclose()
 
     async def aclose(self) -> None:
-        """Close the underlying stream (matches AsyncStream.close() interface)."""
+        """Record accumulated cost then close the underlying stream."""
+        self._record_cost()
         close = getattr(self._stream, "aclose", None) or getattr(self._stream, "close", None)
         if close is not None:
             try:
@@ -359,65 +387,91 @@ class _AnthropicStreamWrapper:
 
 
 class _AsyncAnthropicStreamWrapper:
-    """Wraps an async Anthropic ``AsyncStream[RawMessageStreamEvent]``."""
+    """Wraps an async Anthropic ``AsyncStream[RawMessageStreamEvent]``.
+
+    Like ``_AsyncOpenAIStreamWrapper``, state is stored on ``self`` rather
+    than inside an async generator so that ``aclose()`` can flush any
+    accumulated cost when the caller breaks out of the loop early.
+    """
 
     def __init__(self, stream: Any, get_session: Callable) -> None:
         self._stream = stream
         self._get_session = get_session
+        self._aiter: Optional[Any] = None
+        # Accumulated usage state
+        self._model: Optional[str] = None
+        self._input_tokens: Optional[int] = None
+        self._output_tokens: Optional[int] = None
+        self._cost_recorded: bool = False
 
-    async def _iterate(self) -> AsyncIterator:
-        model: Optional[str] = None
-        input_tokens: Optional[int] = None
-        output_tokens: Optional[int] = None
+    def __aiter__(self) -> "_AsyncAnthropicStreamWrapper":
+        self._aiter = self._stream.__aiter__()
+        return self
 
+    async def __anext__(self) -> Any:
         try:
-            async for event in self._stream:
-                event_type = getattr(event, "type", None)
-                if event_type == "message_start":
-                    msg = getattr(event, "message", None)
-                    if msg is not None:
-                        if model is None:
-                            model = getattr(msg, "model", None)
-                        usage = getattr(msg, "usage", None)
-                        if usage is not None:
-                            it = getattr(usage, "input_tokens", None)
-                            if it is not None:
-                                input_tokens = it
-                elif event_type == "message_delta":
-                    usage = getattr(event, "usage", None)
-                    if usage is not None:
-                        ot = getattr(usage, "output_tokens", None)
-                        if ot is not None:
-                            output_tokens = ot
-                yield event
-        finally:
-            self._record_cost(model, input_tokens, output_tokens)
+            event = await self._aiter.__anext__()
+        except StopAsyncIteration:
+            self._record_cost()
+            raise
+        event_type = getattr(event, "type", None)
+        if event_type == "message_start":
+            msg = getattr(event, "message", None)
+            if msg is not None:
+                if self._model is None:
+                    self._model = getattr(msg, "model", None)
+                usage = getattr(msg, "usage", None)
+                if usage is not None:
+                    it = getattr(usage, "input_tokens", None)
+                    if it is not None:
+                        self._input_tokens = it
+        elif event_type == "message_delta":
+            usage = getattr(event, "usage", None)
+            if usage is not None:
+                ot = getattr(usage, "output_tokens", None)
+                if ot is not None:
+                    self._output_tokens = ot
+        # Record eagerly once both input and output usage are known so that a
+        # caller who breaks after the message_delta event still gets tracked.
+        if (
+            self._model
+            and self._input_tokens is not None
+            and self._output_tokens is not None
+            and not self._cost_recorded
+        ):
+            self._record_cost()
+        return event
 
-    def _record_cost(
-        self,
-        model: Optional[str],
-        input_tokens: Optional[int],
-        output_tokens: Optional[int],
-    ) -> None:
+    def _record_cost(self) -> None:
+        if self._cost_recorded:
+            return
+        self._cost_recorded = True
         session = self._get_session()
         if session is None:
             return
 
-        if model and input_tokens is not None and output_tokens is not None:
+        if (
+            self._model
+            and self._input_tokens is not None
+            and self._output_tokens is not None
+        ):
             try:
-                session.wrap(_FakeAnthropicResult(model, input_tokens, output_tokens))
+                session.wrap(
+                    _FakeAnthropicResult(self._model, self._input_tokens, self._output_tokens)
+                )
             except Exception:
                 logger.debug("Failed to track Anthropic async streaming cost", exc_info=True)
                 raise
             return
 
-        if model is not None or input_tokens is not None or output_tokens is not None:
+        if (
+            self._model is not None
+            or self._input_tokens is not None
+            or self._output_tokens is not None
+        ):
             logger.warning(
                 "Anthropic streaming call ended without complete usage data; cost was not tracked."
             )
-
-    def __aiter__(self) -> Any:
-        return self._iterate().__aiter__()
 
     async def __aenter__(self) -> "_AsyncAnthropicStreamWrapper":
         return self
@@ -426,7 +480,8 @@ class _AsyncAnthropicStreamWrapper:
         await self.aclose()
 
     async def aclose(self) -> None:
-        """Close the underlying stream (matches AsyncStream.close() interface)."""
+        """Record accumulated cost then close the underlying stream."""
+        self._record_cost()
         close = getattr(self._stream, "aclose", None) or getattr(self._stream, "close", None)
         if close is not None:
             try:
