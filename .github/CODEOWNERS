@@ -1,7 +1,7 @@
 # Pricing files are generated from pricing.json via scripts/generate_pricing.py.
 # Only maintainers can approve changes to these files.
-pricing.json                          @sahiljagtap07
-scripts/generate_pricing.py           @sahiljagtap07
-agentbudget/pricing.py                @sahiljagtap07
-sdks/go/pricing.go                    @sahiljagtap07
-sdks/typescript/src/pricing.ts        @sahiljagtap07
+pricing.json                          @sahiljagtap08
+scripts/generate_pricing.py           @sahiljagtap08
+agentbudget/pricing.py                @sahiljagtap08
+sdks/go/pricing.go                    @sahiljagtap08
+sdks/typescript/src/pricing.ts        @sahiljagtap08
