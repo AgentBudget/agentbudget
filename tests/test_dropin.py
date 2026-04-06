@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
+import threading
 import types
 from unittest import mock
 
 import pytest
 
 import agentbudget
-from agentbudget._global import _get_session
 
 
 class FakeUsage:
@@ -22,6 +23,44 @@ class FakeResponse:
     def __init__(self, model="gpt-4o", prompt_tokens=100, completion_tokens=50):
         self.model = model
         self.usage = FakeUsage(prompt_tokens, completion_tokens)
+
+
+def _build_fake_openai_modules():
+    """Build a fake openai module tree that matches the SDK patch targets."""
+    openai_mod = types.ModuleType("openai")
+    resources_mod = types.ModuleType("openai.resources")
+    chat_mod = types.ModuleType("openai.resources.chat")
+    completions_mod = types.ModuleType("openai.resources.chat.completions")
+
+    class Completions:
+        def create(self, **kwargs):
+            return FakeResponse(
+                model=kwargs.get("model", "gpt-4o"),
+                prompt_tokens=100,
+                completion_tokens=50,
+            )
+
+    class AsyncCompletions:
+        async def create(self, **kwargs):
+            await asyncio.sleep(kwargs.get("delay", 0))
+            return FakeResponse(
+                model=kwargs.get("model", "gpt-4o"),
+                prompt_tokens=100,
+                completion_tokens=50,
+            )
+
+    completions_mod.Completions = Completions
+    completions_mod.AsyncCompletions = AsyncCompletions
+    chat_mod.completions = completions_mod
+    resources_mod.chat = chat_mod
+    openai_mod.resources = resources_mod
+
+    return {
+        "openai": openai_mod,
+        "openai.resources": resources_mod,
+        "openai.resources.chat": chat_mod,
+        "openai.resources.chat.completions": completions_mod,
+    }, Completions, AsyncCompletions
 
 
 # ---- Tests for global API without patching ----
@@ -107,37 +146,15 @@ class TestPatching:
 
     def teardown_method(self):
         agentbudget.teardown()
-        # Clean up fake modules
+        # Clean up fake provider modules
         for key in list(sys.modules.keys()):
             if key.startswith("openai") or key.startswith("anthropic"):
-                if "fake" in str(type(sys.modules[key])):
-                    del sys.modules[key]
+                del sys.modules[key]
 
     def _install_fake_openai(self):
         """Install a fake openai module that mimics the real SDK structure."""
-        # Create fake module hierarchy
-        openai_mod = types.ModuleType("openai")
-        resources_mod = types.ModuleType("openai.resources")
-        chat_mod = types.ModuleType("openai.resources.chat")
-        completions_mod = types.ModuleType("openai.resources.chat.completions")
-
-        class Completions:
-            def create(self, **kwargs):
-                return FakeResponse(
-                    model=kwargs.get("model", "gpt-4o"),
-                    prompt_tokens=100,
-                    completion_tokens=50,
-                )
-
-        completions_mod.Completions = Completions
-        chat_mod.completions = completions_mod
-        resources_mod.chat = chat_mod
-        openai_mod.resources = resources_mod
-
-        sys.modules["openai"] = openai_mod
-        sys.modules["openai.resources"] = resources_mod
-        sys.modules["openai.resources.chat"] = chat_mod
-        sys.modules["openai.resources.chat.completions"] = completions_mod
+        modules, Completions, _ = _build_fake_openai_modules()
+        sys.modules.update(modules)
 
         return Completions
 
@@ -185,3 +202,143 @@ class TestPatching:
         with pytest.raises(agentbudget.BudgetExhausted):
             for _ in range(10):
                 client.create(model="gpt-4o")
+
+
+class TestConcurrency:
+    def setup_method(self):
+        agentbudget.teardown()
+
+    def teardown_method(self):
+        agentbudget.teardown()
+
+    def test_thread_local_sessions_do_not_leak(self):
+        modules, FakeCompletions, _ = _build_fake_openai_modules()
+        start = threading.Barrier(2)
+        reports = {}
+        errors: list[Exception] = []
+
+        def worker(session_id, tool_cost):
+            try:
+                agentbudget.init(budget="$5.00", session_id=session_id)
+                client = FakeCompletions()
+                start.wait(timeout=5)
+                client.create(model="gpt-4o")
+                agentbudget.track(cost=tool_cost, tool_name=f"tool_{session_id}")
+                reports[session_id] = agentbudget.teardown()
+            except Exception as exc:
+                errors.append(exc)
+                agentbudget.teardown()
+
+        with mock.patch.dict(sys.modules, modules):
+            threads = [
+                threading.Thread(target=worker, args=("thread_a", 0.10)),
+                threading.Thread(target=worker, args=("thread_b", 0.20)),
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+
+        assert not errors
+        assert agentbudget.get_session() is None
+
+        first = reports["thread_a"]
+        second = reports["thread_b"]
+
+        assert first["session_id"] == "thread_a"
+        assert second["session_id"] == "thread_b"
+        assert first["breakdown"]["llm"]["calls"] == 1
+        assert second["breakdown"]["llm"]["calls"] == 1
+        assert set(first["breakdown"]["tools"]["by_tool"]) == {"tool_thread_a"}
+        assert set(second["breakdown"]["tools"]["by_tool"]) == {"tool_thread_b"}
+        assert first["breakdown"]["tools"]["by_tool"]["tool_thread_a"] == pytest.approx(0.10)
+        assert second["breakdown"]["tools"]["by_tool"]["tool_thread_b"] == pytest.approx(0.20)
+
+    def test_teardown_in_one_thread_keeps_other_thread_patched(self):
+        modules, FakeCompletions, _ = _build_fake_openai_modules()
+        ready = threading.Barrier(2)
+        first_torn_down = threading.Event()
+        reports = {}
+        errors: list[Exception] = []
+
+        def first_worker():
+            try:
+                agentbudget.init(budget="$5.00", session_id="first")
+                ready.wait(timeout=5)
+                reports["first"] = agentbudget.teardown()
+            except Exception as exc:
+                errors.append(exc)
+                agentbudget.teardown()
+            finally:
+                first_torn_down.set()
+
+        def second_worker():
+            try:
+                agentbudget.init(budget="$5.00", session_id="second")
+                client = FakeCompletions()
+                ready.wait(timeout=5)
+                assert first_torn_down.wait(timeout=5)
+                client.create(model="gpt-4o")
+                reports["second_mid"] = agentbudget.report()
+                reports["second"] = agentbudget.teardown()
+            except Exception as exc:
+                errors.append(exc)
+                agentbudget.teardown()
+
+        with mock.patch.dict(sys.modules, modules):
+            threads = [
+                threading.Thread(target=first_worker),
+                threading.Thread(target=second_worker),
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+
+        assert not errors
+        assert reports["first"]["session_id"] == "first"
+        assert reports["second_mid"]["session_id"] == "second"
+        assert reports["second_mid"]["breakdown"]["llm"]["calls"] == 1
+        assert reports["second"]["breakdown"]["llm"]["calls"] == 1
+
+    @pytest.mark.asyncio
+    async def test_async_tasks_can_shadow_parent_session_independently(self):
+        modules, _, FakeAsyncCompletions = _build_fake_openai_modules()
+
+        with mock.patch.dict(sys.modules, modules):
+            parent_session = agentbudget.init(budget="$5.00", session_id="parent")
+
+            async def worker(session_id, tool_cost):
+                try:
+                    agentbudget.init(budget="$3.00", session_id=session_id)
+                    client = FakeAsyncCompletions()
+                    await client.create(model="gpt-4o", delay=0)
+                    agentbudget.track(cost=tool_cost, tool_name=f"tool_{session_id}")
+                    report = agentbudget.teardown()
+                    restored = agentbudget.get_session()
+                    return report, restored.session_id if restored else None
+                finally:
+                    current = agentbudget.get_session()
+                    if current is not None and current.session_id == session_id:
+                        agentbudget.teardown()
+
+            child_reports = await asyncio.gather(
+                worker("task_a", 0.10),
+                worker("task_b", 0.20),
+            )
+
+            assert agentbudget.get_session() is parent_session
+            assert agentbudget.report()["breakdown"]["llm"]["calls"] == 0
+            parent_report = agentbudget.teardown()
+
+        first_report, first_restored = child_reports[0]
+        second_report, second_restored = child_reports[1]
+
+        assert first_report["session_id"] == "task_a"
+        assert second_report["session_id"] == "task_b"
+        assert first_report["breakdown"]["llm"]["calls"] == 1
+        assert second_report["breakdown"]["llm"]["calls"] == 1
+        assert first_restored == "parent"
+        assert second_restored == "parent"
+        assert parent_report["session_id"] == "parent"
+        assert parent_report["total_spent"] == 0.0

@@ -59,7 +59,13 @@ print(agentbudget.report())     # Full cost breakdown
 agentbudget.teardown()  # Stop tracking, get final report
 ```
 
-`agentbudget.init()` patches OpenAI and Anthropic SDKs so every call is tracked automatically. `teardown()` restores the originals. Same pattern as Sentry and Datadog.
+`agentbudget.init()` patches OpenAI and Anthropic SDKs so every call is tracked automatically. The patch is process-wide, but the active budget/session is isolated to the current thread or async task. `teardown()` only closes the current context's session, and the SDKs are unpatched after the last active context exits.
+
+For concurrent apps:
+
+- Call `agentbudget.init()` inside each request thread that needs its own session.
+- `asyncio` tasks inherit the current session at task creation; call `agentbudget.init()` inside the task to give it an independent session.
+- For explicit server-side scoping, `wrap_client()` or manual `BudgetSession` usage is still the most predictable option.
 
 ### Manual Mode
 
@@ -160,7 +166,7 @@ See [`/sdks/typescript/README.md`](./sdks/typescript/README.md) for full docs.
 
 | Function | Description |
 |---|---|
-| `agentbudget.init(budget)` | Start tracking. Patches OpenAI/Anthropic. Returns session. |
+| `agentbudget.init(budget)` | Start tracking in the current thread/task context. Returns session. |
 | `agentbudget.spent()` | Total dollars spent so far. |
 | `agentbudget.remaining()` | Dollars left in the budget. |
 | `agentbudget.report()` | Full cost breakdown as a dict. |
@@ -168,8 +174,8 @@ See [`/sdks/typescript/README.md`](./sdks/typescript/README.md) for full docs.
 | `agentbudget.wrap_client(client, session)` | Attach tracking to a specific client instance only. |
 | `agentbudget.register_model(name, input, output)` | Add pricing for a new model at runtime. |
 | `agentbudget.register_models(dict)` | Batch register pricing for multiple models. |
-| `agentbudget.get_session()` | Get the active session for advanced use. |
-| `agentbudget.teardown()` | Stop tracking, unpatch SDKs, return final report. |
+| `agentbudget.get_session()` | Get the active session visible in the current context. |
+| `agentbudget.teardown()` | Stop tracking in the current context and return its final report. |
 
 ---
 
@@ -209,7 +215,7 @@ async for chunk in await client.chat.completions.create(stream=True, stream_opti
 
 ### Explicit Per-Client Tracking
 
-By default, `agentbudget.init()` patches all OpenAI/Anthropic calls globally. If you need finer control — multiple budgets, different clients per task, or just prefer explicit scope — use `wrap_client()`:
+By default, `agentbudget.init()` installs process-wide OpenAI/Anthropic patches and resolves the active session from the current thread/task context at call time. If you need finer control — multiple budgets, different clients per task, or just prefer explicit scope — use `wrap_client()`:
 
 ```python
 from agentbudget import AgentBudget
