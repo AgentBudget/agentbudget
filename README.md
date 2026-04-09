@@ -335,9 +335,12 @@ def my_search(query):
 ```python
 from agentbudget.integrations.langchain import LangChainBudgetCallback
 
-callback = LangChainBudgetCallback(budget="$5.00")
-agent.run("Research competitors", callbacks=[callback])
-print(callback.get_report())
+with LangChainBudgetCallback(
+    budget="$5.00",
+    tool_costs={"search": 0.01},
+) as callback:
+    agent.run("Research competitors", callbacks=[callback])
+    print(callback.get_report())
 ```
 
 ### AutoGen

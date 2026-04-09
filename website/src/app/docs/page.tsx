@@ -477,14 +477,15 @@ async with budget.async_session() as session:
           <CodeBlock lang="bash">{`pip install agentbudget[langchain]`}</CodeBlock>
           <CodeBlock>{`from agentbudget.integrations.langchain import LangChainBudgetCallback
 
-callback = LangChainBudgetCallback(budget="$5.00")
-
-agent.run(
-    "Research competitors in the CRM space",
-    callbacks=[callback]
-)
-
-print(callback.get_report())`}</CodeBlock>
+with LangChainBudgetCallback(
+    budget="$5.00",
+    tool_costs={"search": 0.01},
+) as callback:
+    agent.run(
+        "Research competitors in the CRM space",
+        callbacks=[callback]
+    )
+    print(callback.get_report())`}</CodeBlock>
 
           {/* CrewAI */}
           <h2 id="crewai" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">
