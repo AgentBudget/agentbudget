@@ -22,3 +22,14 @@ class InvalidBudget(AgentBudgetError):
     def __init__(self, value: str):
         self.value = value
         super().__init__(f"Invalid budget value: {value!r}")
+
+
+class InvalidCost(AgentBudgetError):
+    """Raised when a tracked cost value is not finite and non-negative."""
+
+    def __init__(self, cost: float):
+        self.cost = cost
+        super().__init__(
+            f"Invalid cost value: {cost!r}. "
+            "Cost must be a finite, non-negative number."
+        )

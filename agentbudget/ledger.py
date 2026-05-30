@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+import math
 import threading
 from typing import Any
 
-from .exceptions import BudgetExhausted
+from .exceptions import BudgetExhausted, InvalidCost
 from .types import CostEvent, CostType
+
+
+def validate_cost(cost: float) -> None:
+    """Validate that a cost value is finite and non-negative.
+
+    Raises :class:`InvalidCost` for negative numbers, ``NaN``,
+    positive infinity, or negative infinity.
+    """
+    if not isinstance(cost, (int, float)):
+        raise InvalidCost(cost)
+    if math.isnan(cost) or math.isinf(cost) or cost < 0:
+        raise InvalidCost(cost)
 
 
 class Ledger:
@@ -38,7 +51,13 @@ class Ledger:
             return list(self._events)
 
     def record(self, event: CostEvent) -> None:
-        """Record a cost event. Raises BudgetExhausted if budget exceeded."""
+        """Record a cost event.
+
+        Raises :class:`InvalidCost` if the event cost is not finite and
+        non-negative.  Raises :class:`BudgetExhausted` if the budget
+        would be exceeded.
+        """
+        validate_cost(event.cost)
         with self._lock:
             new_total = self._spent + event.cost
             if new_total > self._budget:
@@ -47,7 +66,11 @@ class Ledger:
             self._events.append(event)
 
     def would_exceed(self, cost: float) -> bool:
-        """Check if a cost would exceed the budget without recording it."""
+        """Check if a cost would exceed the budget without recording it.
+
+        Raises :class:`InvalidCost` if *cost* is not finite and non-negative.
+        """
+        validate_cost(cost)
         with self._lock:
             return (self._spent + cost) > self._budget
 
