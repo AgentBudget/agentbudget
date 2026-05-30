@@ -7,6 +7,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.0] — 2026-05-30
+
+### Added
+- **LangChain / LangGraph coverage** — `LangChainBudgetCallback` now extracts usage from modern chat-model `usage_metadata` and Anthropic-style `response_metadata` (not just legacy `LLMResult.token_usage`), so chat models and LangGraph runs are counted instead of silently recording `$0.00`. Adds optional tool-cost tracking (`tool_costs` / `default_tool_cost`), a context-manager/`close()` lifecycle that finalizes the session and fires `on_hard_limit`, and `on_soft_limit`/`on_hard_limit`/`on_loop_detected` forwarding. Warns instead of silently skipping when usage can't be extracted or a model has no pricing. Thanks [@veeradyani222](https://github.com/veeradyani222)! (#26)
+- **`InvalidCost` exception** — exported from the package and raised when a tracked cost is negative, `NaN`, or infinite.
+- **Contributor docs** — issue/PR templates and a `CONTRIBUTING.md` covering per-SDK test commands and the generated-pricing workflow. Thanks [@sundaram2021](https://github.com/sundaram2021)! (#25)
+
+### Changed
+- **Drop-in API isolation** — `init()` / `teardown()` session state is now scoped per thread and per async task via `contextvars` instead of a single process-global session. Concurrent requests no longer overwrite or tear down each other's sessions, and one context's `teardown()` no longer unpatches the SDKs for everyone. Thanks [@sundaram2021](https://github.com/sundaram2021)! (#20)
+
+### Fixed
+- **Streaming cost on early exit** — `stream=True` cost is now recorded when the caller breaks out of the stream early or an async stream ends incompletely (`try/finally` for sync wrappers; instance-state + eager recording for async). OpenAI streaming auto-injects `stream_options={"include_usage": True}`, and incomplete-usage streams now log a warning instead of silently under-counting. Thanks [@Kunal1522](https://github.com/Kunal1522)! (#15)
+- **Invalid cost values** — negative, `NaN`, and infinite costs are now rejected with `InvalidCost` before touching the ledger. Previously they corrupted the running total (`remaining` could exceed the budget, or become `NaN`). Thanks [@drewster99](https://github.com/drewster99)! (#21)
+
+---
+
 ## [0.3.0] — 2026-03-28
 
 ### Added
