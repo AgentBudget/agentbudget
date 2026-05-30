@@ -14,14 +14,14 @@
 
 ---
 
-## What's New in v0.3.0 — Streaming cost tracking, per-client API, and finalization reserve
+## What's New in v0.4.0 — LangChain/LangGraph coverage, safer concurrency & costs
 
-- **Streaming support** — `stream=True` calls fully tracked for OpenAI and Anthropic (sync + async). Requires `stream_options={"include_usage": True}` for OpenAI.
-- **`agentbudget.wrap_client(client, session)`** — explicit per-client tracking, no global patching required.
-- **`finalization_reserve`** — reserve a fraction of budget for the final response step so agents aren't cut off mid-task.
-- **`session.would_exceed(cost)`** — pre-flight budget check before expensive calls.
-- **OpenRouter support** — model names like `"openai/gpt-4o"` now resolve correctly.
-- **4 bug fixes** from community contributors (thread safety, off-by-one, exception handling, price validation).
+- **LangChain / LangGraph** — `LangChainBudgetCallback` now tracks modern chat-model usage (`usage_metadata`) and LangGraph runs, adds optional tool-cost tracking, and a context-manager lifecycle with `on_hard_limit` support. (#26)
+- **Per-request isolation in drop-in mode** — `init()` / `teardown()` session state is now scoped per thread and per async task, so concurrent requests no longer overwrite or tear down each other's sessions. (#20)
+- **Cost validation** — negative, `NaN`, and infinite costs are now rejected with `InvalidCost` before they can corrupt the ledger. (#21)
+- **Streaming, fixed** — cost is recorded even when you break out of a stream early or an async stream ends incompletely, and OpenAI's `stream_options={"include_usage": True}` is now injected automatically. (#15)
+
+See the [changelog](CHANGELOG.md) for the full list. Earlier 0.3.0 features — streaming, `wrap_client()`, `finalization_reserve`, `would_exceed()`, and OpenRouter model names — are documented below.
 
 ---
 
@@ -183,7 +183,7 @@ See [`/sdks/typescript/README.md`](./sdks/typescript/README.md) for full docs.
 
 ### Streaming Support
 
-Streaming responses (`stream=True`) are fully tracked. Cost is recorded after the stream is exhausted — chunks pass through to your code unchanged.
+Streaming responses (`stream=True`) are fully tracked. Cost is recorded even if you break out of the stream early — chunks pass through to your code unchanged.
 
 ```python
 # Drop-in mode — works automatically
@@ -193,21 +193,20 @@ client = openai.OpenAI()
 stream = client.chat.completions.create(
     model="gpt-4o",
     messages=[{"role": "user", "content": "Summarize this report"}],
-    stream=True,
-    stream_options={"include_usage": True},  # required for OpenAI cost tracking
+    stream=True,  # include_usage is added automatically for OpenAI
 )
 for chunk in stream:
     print(chunk.choices[0].delta.content or "", end="")
 
-print(agentbudget.spent())  # cost recorded after stream exhausted
+print(agentbudget.spent())  # cost recorded after the stream
 ```
 
-> **OpenAI note:** You must pass `stream_options={"include_usage": True}` for token counts to appear on the final chunk. Without it, streaming calls are silently tracked as `$0.00` (no error). Anthropic streams always include usage — no extra option needed.
+> **OpenAI note:** In drop-in mode (`init()`) and with `wrap_client()`, AgentBudget automatically adds `stream_options={"include_usage": True}` so token counts appear on the final chunk — you don't need to pass it yourself (an explicit value is always respected). Anthropic streams always include usage. The only time you must set it manually is if you call the OpenAI API directly and pass the response to `session.wrap()`.
 
 Async streaming works the same way:
 
 ```python
-async for chunk in await client.chat.completions.create(stream=True, stream_options={"include_usage": True}, ...):
+async for chunk in await client.chat.completions.create(stream=True, ...):
     ...
 ```
 

@@ -20,7 +20,7 @@ export function Nav() {
         <div className="hidden items-center gap-7 md:flex">
           <span className="inline-flex items-center gap-1.5 border border-accent/20 bg-accent/10 px-2.5 py-0.5 font-mono text-[11px] font-medium text-accent-bright">
             <span className="h-1.5 w-1.5 rounded-full bg-accent" style={{ animation: "pulse-dot 2s ease-in-out infinite" }} />
-            v0.3.0
+            v0.4.0
           </span>
           <Link href="/docs" className="text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground hover:no-underline">
             Docs

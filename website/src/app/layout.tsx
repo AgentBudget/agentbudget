@@ -124,10 +124,10 @@ const faqJsonLd = {
     },
     {
       "@type": "Question",
-      name: "Does AgentBudget work with LangChain and CrewAI?",
+      name: "Does AgentBudget work with LangChain, LangGraph, and CrewAI?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. AgentBudget has native integrations for LangChain via LangChainBudgetCallback and CrewAI via CrewAIBudgetMiddleware. Install with pip install agentbudget[langchain].",
+        text: "Yes. AgentBudget has native integrations for LangChain and LangGraph via LangChainBudgetCallback (which tracks chat-model usage and tool costs), CrewAI via CrewAIBudgetMiddleware, and AutoGen. Install with pip install agentbudget[langchain].",
       },
     },
   ],

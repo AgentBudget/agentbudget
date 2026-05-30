@@ -168,7 +168,9 @@ agentbudget.teardown()  # Stop tracking, get final report`}</CodeBlock>
             <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">agentbudget.init()</code> monkey-patches{" "}
             <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">Completions.create</code> and{" "}
             <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">Messages.create</code> on the OpenAI and Anthropic SDKs.{" "}
-            Same pattern used by Sentry, Datadog, and other observability tools.
+            Same pattern used by Sentry, Datadog, and other observability tools. The patch is process-wide, but the active
+            session is scoped to the current thread or async task — so concurrent requests each get their own budget and
+            don&apos;t overwrite each other.
           </div>
 
           <h3 className="mb-3 mt-8 text-base font-semibold">Drop-in API</h3>
@@ -316,7 +318,7 @@ AgentBudget(max_spend=5)`}</CodeBlock>
             Streaming Support
           </h2>
           <p className="mb-4 text-[14px] text-muted-foreground">
-            Streaming responses (<code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">stream=True</code>) are fully tracked. Cost is recorded after the stream is exhausted — every chunk passes through to your code unchanged.
+            Streaming responses (<code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">stream=True</code>) are fully tracked. Cost is recorded even if you break out of the stream early — every chunk passes through to your code unchanged.
           </p>
           <CodeBlock>{`agentbudget.init("$5.00")
 client = openai.OpenAI()
@@ -324,26 +326,26 @@ client = openai.OpenAI()
 stream = client.chat.completions.create(
     model="gpt-4o",
     messages=[{"role": "user", "content": "Summarize this report"}],
-    stream=True,
-    stream_options={"include_usage": True},  # required for OpenAI
+    stream=True,  # include_usage is added automatically for OpenAI
 )
 for chunk in stream:
     print(chunk.choices[0].delta.content or "", end="")
 
-print(agentbudget.spent())  # cost recorded after stream exhausted`}</CodeBlock>
-          <div className="mt-4 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-[13px] text-muted-foreground">
-            <strong className="text-foreground">OpenAI note:</strong> You must pass{" "}
+print(agentbudget.spent())  # cost recorded after the stream`}</CodeBlock>
+          <div className="mt-4 border-l-2 border-accent/40 bg-accent/5 px-4 py-3 text-[13px] text-muted-foreground">
+            <strong className="text-foreground">OpenAI note:</strong> In drop-in mode and with{" "}
+            <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">wrap_client()</code>, AgentBudget adds{" "}
             <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">{'stream_options={"include_usage": True}'}</code>{" "}
-            for token counts to appear on the final chunk. Without it, streaming calls are silently tracked as{" "}
-            <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">$0.00</code> — no error, just no cost.
-            Anthropic streams always include usage automatically.
+            automatically, so token counts appear on the final chunk — you don&apos;t need to pass it (an explicit value is respected).
+            Anthropic streams always include usage. Only set it yourself if you call OpenAI directly and pass the result to{" "}
+            <code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">session.wrap()</code>.
           </div>
           <p className="mt-4 text-[14px] text-muted-foreground">
             Both for-loop and context-manager patterns are supported, sync and async:
           </p>
           <CodeBlock>{`# async for
 async for chunk in await client.chat.completions.create(
-    stream=True, stream_options={"include_usage": True}, ...
+    stream=True, ...
 ):
     process(chunk)
 
@@ -714,6 +716,7 @@ registerModel("gpt-5-mini", 0.50, 2.00);`}
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">BudgetExhausted</code></td><td className="py-2">Session exceeded its dollar budget (hard limit).</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">LoopDetected</code></td><td className="py-2">Repeated calls to the same tool/model detected.</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">InvalidBudget</code></td><td className="py-2">Budget string couldn&apos;t be parsed.</td></tr>
+                <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">InvalidCost</code></td><td className="py-2">A tracked cost was negative, NaN, or infinite.</td></tr>
                 <tr className="border-b border-border"><td className="py-2 pr-4"><code className="bg-code-bg px-1.5 py-0.5 text-[12px] text-accent-bright">AgentBudgetError</code></td><td className="py-2">Base exception for all AgentBudget errors.</td></tr>
               </tbody>
             </table>
