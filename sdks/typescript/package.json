@@ -1,6 +1,6 @@
 {
   "name": "@agentbudget/agentbudget",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Real-time cost enforcement for AI agent sessions — works with OpenAI and Anthropic",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
