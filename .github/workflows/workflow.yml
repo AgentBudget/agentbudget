@@ -3,6 +3,7 @@ name: Publish to PyPI
 on:
   release:
     types: [published]
+  workflow_dispatch:  # allow manual re-publishing of the current main version
 
 permissions:
   contents: read
