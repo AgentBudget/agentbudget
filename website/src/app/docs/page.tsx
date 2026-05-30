@@ -477,14 +477,20 @@ async with budget.async_session() as session:
           <CodeBlock lang="bash">{`pip install agentbudget[langchain]`}</CodeBlock>
           <CodeBlock>{`from agentbudget.integrations.langchain import LangChainBudgetCallback
 
-callback = LangChainBudgetCallback(budget="$5.00")
-
-agent.run(
-    "Research competitors in the CRM space",
-    callbacks=[callback]
-)
+# Use as a context manager so the session is finalized.
+with LangChainBudgetCallback(budget="$5.00") as callback:
+    agent.invoke(
+        {"input": "Research competitors in the CRM space"},
+        config={"callbacks": [callback]},
+    )
 
 print(callback.get_report())`}</CodeBlock>
+          <p className="mb-4 mt-4 text-[14px] text-muted-foreground">
+            Costs are tracked from both legacy <code>LLMResult</code> usage and modern
+            chat-model <code>usage_metadata</code>, so LangGraph runs and chat models are
+            counted correctly. Pass <code>tool_costs={`{"web_search": 0.01}`}</code> to also
+            charge tool calls against the budget.
+          </p>
 
           {/* CrewAI */}
           <h2 id="crewai" className="mb-4 mt-16 border-t border-border pt-8 text-xl font-semibold">

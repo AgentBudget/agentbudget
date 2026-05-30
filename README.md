@@ -338,12 +338,32 @@ def my_search(query):
 
 ### LangChain / LangGraph
 
+```bash
+pip install agentbudget[langchain]
+```
+
 ```python
 from agentbudget.integrations.langchain import LangChainBudgetCallback
 
-callback = LangChainBudgetCallback(budget="$5.00")
-agent.run("Research competitors", callbacks=[callback])
+# Use as a context manager so the session is finalized (duration + on_hard_limit).
+with LangChainBudgetCallback(budget="$5.00") as callback:
+    agent.invoke(
+        {"input": "Research competitors"},
+        config={"callbacks": [callback]},
+    )
+
 print(callback.get_report())
+```
+
+Costs are tracked from both legacy `LLMResult` token usage and modern chat-model
+`usage_metadata`, so LangGraph runs and chat models (OpenAI, Anthropic, …) are
+counted correctly. To also charge tool calls against the budget, pass per-tool costs:
+
+```python
+callback = LangChainBudgetCallback(
+    budget="$5.00",
+    tool_costs={"web_search": 0.01, "code_exec": 0.005},
+)
 ```
 
 ### AutoGen
