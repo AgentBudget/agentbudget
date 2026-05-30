@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # Required for trusted publishing
 
 jobs:
   python:
@@ -81,6 +82,7 @@ jobs:
   publish:
     needs: [python, go, typescript, website, pricing-sync]
     runs-on: ubuntu-latest
+    environment: pypi
     steps:
       - uses: actions/checkout@v4
 
@@ -96,5 +98,3 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
