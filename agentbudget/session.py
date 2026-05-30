@@ -7,7 +7,7 @@ from typing import Any, Optional, TypeVar
 
 from .circuit_breaker import CircuitBreaker
 from .exceptions import BudgetExhausted
-from .ledger import Ledger
+from .ledger import Ledger, validate_cost
 from .pricing import calculate_llm_cost
 from .types import CostEvent, CostType, generate_session_id
 
@@ -65,6 +65,9 @@ class BudgetSession:
 
     def would_exceed(self, estimated_cost: float) -> bool:
         """Check if a cost would exceed the remaining budget without recording it.
+
+        Raises :class:`~agentbudget.exceptions.InvalidCost` if
+        *estimated_cost* is negative, ``NaN``, or infinite.
 
         Use this before a final LLM call to avoid hard-limit termination mid-task:
 
@@ -133,7 +136,11 @@ class BudgetSession:
 
         Returns the result passthrough so it can be used inline:
             data = session.track(call_api(), cost=0.01, tool_name="my_api")
+
+        Raises :class:`~agentbudget.exceptions.InvalidCost` if *cost* is
+        negative, ``NaN``, or infinite.
         """
+        validate_cost(cost)
         event = CostEvent(
             cost=cost,
             cost_type=CostType.TOOL,

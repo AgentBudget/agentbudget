@@ -9,6 +9,15 @@ permissions:
   contents: read
 
 jobs:
+  pricing-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python scripts/generate_pricing.py --check
+
   python:
     name: Python (${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -34,7 +43,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: sdks/go/go.mod
-          cache-dependency-path: sdks/go/go.mod
+          cache: false
       - run: go test ./...
 
   typescript:
@@ -68,12 +77,3 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-
-  pricing:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: python scripts/generate_pricing.py --check

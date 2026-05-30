@@ -3,7 +3,7 @@
 Covers:
 - OpenAI sync streaming (usage in final chunk)
 - OpenAI async streaming
-- OpenAI streaming with no usage chunk (cost silently skipped)
+- OpenAI streaming with no usage chunk (cost skipped with warning)
 - Anthropic sync streaming (usage from message_start + message_delta events)
 - Anthropic async streaming
 - BudgetExhausted raised during streaming consumption
@@ -12,6 +12,7 @@ Covers:
 
 from __future__ import annotations
 
+import logging
 import sys
 import types
 from typing import Iterator, AsyncIterator
@@ -134,7 +135,7 @@ def test_openai_stream_records_cost():
 
 
 def test_openai_stream_no_usage_skips_cost():
-    """If the stream has no usage chunk, cost is silently skipped (no error)."""
+    """If the stream has no usage chunk, cost is skipped and a warning is logged."""
     budget = AgentBudget(max_spend="$5.00")
     with budget.session() as session:
         stream = _wrap_openai_stream(_openai_chunks_no_usage(), lambda: session)
@@ -142,6 +143,38 @@ def test_openai_stream_no_usage_skips_cost():
 
     assert len(chunks) == 2
     assert session.spent == 0.0
+
+
+def test_openai_stream_break_after_usage_chunk_records_cost():
+    """Breaking after the final usage chunk should still record cost via finally."""
+    budget = AgentBudget(max_spend="$5.00")
+    with budget.session() as session:
+        stream = _wrap_openai_stream(
+            _openai_chunks("gpt-4o", prompt_tokens=1000, completion_tokens=500),
+            lambda: session,
+        )
+
+        seen = 0
+        for chunk in stream:
+            seen += 1
+            if chunk.usage is not None:
+                break
+
+    assert seen == 3
+    assert session.spent == pytest.approx(0.0075, rel=1e-4)
+
+
+def test_openai_stream_no_usage_logs_warning(caplog):
+    """A warning makes missing usage visible instead of silently under-counting."""
+    budget = AgentBudget(max_spend="$5.00")
+    with budget.session() as session:
+        with caplog.at_level(logging.WARNING, logger="agentbudget.patch"):
+            stream = _wrap_openai_stream(_openai_chunks_no_usage(), lambda: session)
+            chunks = list(stream)
+
+    assert len(chunks) == 2
+    assert session.spent == 0.0
+    assert "OpenAI streaming call ended without complete usage data" in caplog.text
 
 
 def test_openai_stream_passthrough():
@@ -217,6 +250,25 @@ async def test_openai_async_stream_no_usage_skips_cost():
     assert len(chunks) == 2
 
 
+@pytest.mark.asyncio
+async def test_openai_async_stream_break_after_usage_chunk_records_cost():
+    budget = AgentBudget(max_spend="$5.00")
+    async with budget.async_session() as session:
+        stream = _wrap_openai_async_stream(
+            _openai_async_chunks("gpt-4o", 1000, 500),
+            lambda: session,
+        )
+
+        seen = 0
+        async for chunk in stream:
+            seen += 1
+            if chunk.usage is not None:
+                break
+
+    assert seen == 3
+    assert session.spent == pytest.approx(0.0075, rel=1e-4)
+
+
 # ---------------------------------------------------------------------------
 # Anthropic sync streaming tests
 # ---------------------------------------------------------------------------
@@ -253,6 +305,25 @@ def test_anthropic_stream_no_session_is_noop():
     assert len(events) == 4
 
 
+def test_anthropic_stream_break_after_usage_event_records_cost():
+    """Anthropic can recover cost once both input and output usage were seen."""
+    budget = AgentBudget(max_spend="$5.00")
+    with budget.session() as session:
+        stream = _wrap_anthropic_stream(
+            _anthropic_events("claude-3-5-sonnet-20241022", input_tokens=1000, output_tokens=500),
+            lambda: session,
+        )
+
+        seen = 0
+        for event in stream:
+            seen += 1
+            if getattr(event, "type", None) == "message_delta":
+                break
+
+    assert seen == 3
+    assert session.spent == pytest.approx(0.0105, rel=1e-4)
+
+
 # ---------------------------------------------------------------------------
 # Anthropic async streaming tests
 # ---------------------------------------------------------------------------
@@ -275,6 +346,25 @@ async def test_anthropic_async_stream_records_cost():
         events = [e async for e in stream]
 
     assert len(events) == 4
+    assert session.spent == pytest.approx(0.0105, rel=1e-4)
+
+
+@pytest.mark.asyncio
+async def test_anthropic_async_stream_break_after_usage_event_records_cost():
+    budget = AgentBudget(max_spend="$5.00")
+    async with budget.async_session() as session:
+        stream = _wrap_anthropic_async_stream(
+            _anthropic_async_events("claude-3-5-sonnet-20241022", 1000, 500),
+            lambda: session,
+        )
+
+        seen = 0
+        async for event in stream:
+            seen += 1
+            if getattr(event, "type", None) == "message_delta":
+                break
+
+    assert seen == 3
     assert session.spent == pytest.approx(0.0105, rel=1e-4)
 
 
@@ -474,3 +564,67 @@ def test_dropin_patches_openai_streaming():
             assert agentbudget.spent() == pytest.approx(0.0075, rel=1e-4)
         finally:
             agentbudget.teardown()
+
+
+def test_wrap_method_injects_openai_stream_usage_option():
+    """The OpenAI patch should request usage automatically for streaming calls."""
+    captured_kwargs = {}
+
+    class FakeStream:
+        def __iter__(self):
+            return iter(_openai_chunks("gpt-4o", 1000, 500))
+
+    def fake_create(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return FakeStream()
+
+    from agentbudget._patch import _wrap_method
+
+    patched_create = _wrap_method(fake_create, lambda: None, provider="openai")
+    patched_create(stream=True)
+
+    assert captured_kwargs["stream_options"] == {"include_usage": True}
+
+
+def test_wrap_method_preserves_explicit_openai_stream_usage_option():
+    """Caller-provided include_usage should not be overwritten by the patch."""
+    captured_kwargs = {}
+
+    class FakeStream:
+        def __iter__(self):
+            return iter(_openai_chunks("gpt-4o", 1000, 500))
+
+    def fake_create(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return FakeStream()
+
+    from agentbudget._patch import _wrap_method
+
+    patched_create = _wrap_method(fake_create, lambda: None, provider="openai")
+    patched_create(stream=True, stream_options={"include_usage": False, "foo": "bar"})
+
+    assert captured_kwargs["stream_options"] == {"include_usage": False, "foo": "bar"}
+
+
+@pytest.mark.asyncio
+async def test_wrap_async_method_injects_openai_stream_usage_option():
+    """The async OpenAI patch should mirror the sync kwargs injection logic."""
+    captured_kwargs = {}
+
+    class FakeAsyncStream:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise StopAsyncIteration
+
+    async def fake_create(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return FakeAsyncStream()
+
+    from agentbudget._patch import _wrap_async_method
+
+    patched_create = _wrap_async_method(fake_create, lambda: None, provider="openai")
+    await patched_create(stream=True)
+
+    assert captured_kwargs["stream_options"] == {"include_usage": True}

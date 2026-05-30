@@ -1,9 +1,9 @@
 """AgentBudget - Real-time cost enforcement for AI agent sessions."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 from .budget import AgentBudget
-from .exceptions import AgentBudgetError, BudgetExhausted, InvalidBudget
+from .exceptions import AgentBudgetError, BudgetExhausted, InvalidBudget, InvalidCost
 from .session import AsyncBudgetSession, BudgetSession, LoopDetected
 from .pricing import register_model, register_models
 
@@ -29,6 +29,7 @@ __all__ = [
     "BudgetExhausted",
     "BudgetSession",
     "InvalidBudget",
+    "InvalidCost",
     "LoopDetected",
     # Pricing
     "register_model",

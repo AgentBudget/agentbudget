@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: sdks/go/go.mod
-          cache-dependency-path: sdks/go/go.mod
+          cache: false
       - run: go test ./...
 
   typescript:
@@ -69,17 +69,17 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
-  pricing:
+  pricing-sync:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
       - run: python scripts/generate_pricing.py --check
 
   publish:
-    needs: [python, go, typescript, website, pricing]
+    needs: [python, go, typescript, website, pricing-sync]
     runs-on: ubuntu-latest
     environment: pypi
     steps:
