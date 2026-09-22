@@ -2,6 +2,67 @@
 
 import { useEffect, useState } from "react";
 
+const REFRESH_MS = 15 * 60 * 1000;
+
+type MetricState = {
+  value: number | null;
+  loading: boolean;
+  error: boolean;
+};
+
+function isValidMetric(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function useApiMetric(path: string, field: string): MetricState {
+  const [state, setState] = useState<MetricState>({ value: null, loading: true, error: false });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const res = await fetch(path, {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+
+        const data = await res.json();
+        const value = data?.[field];
+        if (!isValidMetric(value)) throw new Error("Invalid metric response");
+
+        if (!cancelled) {
+          setState({ value, loading: false, error: false });
+        }
+      } catch {
+        if (!cancelled) {
+          setState((prev) => ({ value: prev.value, loading: false, error: true }));
+        }
+      }
+    };
+
+    void load();
+    const intervalId = window.setInterval(() => {
+      void load();
+    }, REFRESH_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [path, field]);
+
+  return state;
+}
+
+function renderMetric(state: MetricState): string {
+  if (state.value !== null) return fmt(state.value);
+  if (state.loading) return "…";
+  return "--";
+}
+
 export function GitHubStars() {
   const [stars, setStars] = useState<number | null>(null);
 
@@ -60,16 +121,7 @@ export const TSLogo = () => (
 );
 
 export function PyPIDownloads() {
-  const [downloads, setDownloads] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetch("/api/pypi-stats")
-      .then((res) => res.json())
-      .then((data) => {
-        if (typeof data?.downloads === "number") setDownloads(data.downloads);
-      })
-      .catch(() => {});
-  }, []);
+  const metric = useApiMetric("/api/pypi-stats", "downloads");
 
   return (
     <a
@@ -77,25 +129,17 @@ export function PyPIDownloads() {
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1.5 border border-border bg-surface px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:border-border-bright hover:text-foreground hover:no-underline"
+      title={metric.error ? "PyPI download stats are temporarily unavailable" : undefined}
     >
       <PythonLogo />
-      <span className="font-mono">{downloads !== null ? fmt(downloads) : "--"}</span>
-      <span className="text-muted">installs</span>
+      <span className="font-mono">{renderMetric(metric)}</span>
+      <span className="text-muted">downloads</span>
     </a>
   );
 }
 
 export function NpmDownloads() {
-  const [downloads, setDownloads] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetch("/api/npm-stats")
-      .then((res) => res.json())
-      .then((data) => {
-        if (typeof data?.downloads === "number") setDownloads(data.downloads);
-      })
-      .catch(() => {});
-  }, []);
+  const metric = useApiMetric("/api/npm-stats", "downloads");
 
   return (
     <a
@@ -103,23 +147,17 @@ export function NpmDownloads() {
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1.5 border border-border bg-surface px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:border-border-bright hover:text-foreground hover:no-underline"
+      title={metric.error ? "npm download stats are temporarily unavailable" : undefined}
     >
       <TSLogo />
-      <span className="font-mono">{downloads !== null ? fmt(downloads) : "--"}</span>
-      <span className="text-muted">installs</span>
+      <span className="font-mono">{renderMetric(metric)}</span>
+      <span className="text-muted">downloads</span>
     </a>
   );
 }
 
 export function GoClones() {
-  const [clones, setClones] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetch("/api/go-stats")
-      .then((r) => r.json())
-      .then((d) => { if (typeof d?.clones === "number") setClones(d.clones); })
-      .catch(() => {});
-  }, []);
+  const metric = useApiMetric("/api/go-stats", "clones");
 
   return (
     <a
@@ -127,37 +165,21 @@ export function GoClones() {
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1.5 border border-border bg-surface px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:border-border-bright hover:text-foreground hover:no-underline"
+      title={metric.error ? "Go clone proxy stats are temporarily unavailable" : "Go has no official install counter; this is a 14-day GitHub clone proxy"}
     >
       <GoLogo />
-      <span className="font-mono">{clones !== null ? fmt(clones) : "--"}</span>
-      <span className="text-muted">installs</span>
+      <span className="font-mono">{renderMetric(metric)}</span>
+      <span className="text-muted">14d clone proxy</span>
     </a>
   );
 }
 
 export function TotalInstalls() {
-  const [pypi, setPypi] = useState<number | null>(null);
-  const [npm, setNpm] = useState<number | null>(null);
-  const [go, setGo] = useState<number | null>(null);
+  const pypi = useApiMetric("/api/pypi-stats", "downloads");
+  const npm = useApiMetric("/api/npm-stats", "downloads");
 
-  useEffect(() => {
-    fetch("/api/pypi-stats")
-      .then((r) => r.json())
-      .then((d) => { if (typeof d?.downloads === "number") setPypi(d.downloads); })
-      .catch(() => {});
-    fetch("/api/npm-stats")
-      .then((r) => r.json())
-      .then((d) => { if (typeof d?.downloads === "number") setNpm(d.downloads); })
-      .catch(() => {});
-    fetch("/api/go-stats")
-      .then((r) => r.json())
-      .then((d) => { if (typeof d?.clones === "number") setGo(d.clones); })
-      .catch(() => {});
-  }, []);
-
-  const total = pypi !== null || npm !== null || go !== null
-    ? (pypi ?? 0) + (npm ?? 0) + (go ?? 0)
-    : null;
+  const hasAny = pypi.value !== null || npm.value !== null;
+  const total = hasAny ? (pypi.value ?? 0) + (npm.value ?? 0) : null;
 
   return (
     <a
@@ -170,7 +192,7 @@ export function TotalInstalls() {
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
       </svg>
       <span className="font-mono">{total !== null ? fmt(total) : "--"}</span>
-      <span className="text-muted">total installs</span>
+      <span className="text-muted">total downloads</span>
     </a>
   );
 }
