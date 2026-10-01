@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import logging
 from typing import Any, Optional, TypeVar
 
 from .circuit_breaker import CircuitBreaker
@@ -12,6 +13,7 @@ from .pricing import calculate_llm_cost
 from .types import CostEvent, CostType, generate_session_id
 
 T = TypeVar("T")
+logger = logging.getLogger("agentbudget.patch")
 
 
 class LoopDetected(Exception):
