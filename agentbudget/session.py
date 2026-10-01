@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any, Optional, TypeVar
 
@@ -12,6 +13,7 @@ from .pricing import calculate_llm_cost
 from .types import CostEvent, CostType, generate_session_id
 
 T = TypeVar("T")
+logger = logging.getLogger("agentbudget.session")
 
 
 class LoopDetected(Exception):
@@ -122,6 +124,18 @@ class BudgetSession:
             )
             self._ledger.record(event)
             self._check_after_record(call_key=model)
+        else:
+            if model is None:
+                reason = "model could not be extracted"
+            elif input_tokens is None or output_tokens is None:
+                reason = "token usage could not be extracted"
+            else:
+                reason = f"no pricing found for model {model!r}"
+            logger.warning(
+                "Skipping cost tracking for response type %s: %s",
+                type(response).__name__,
+                reason,
+            )
 
         return response
 

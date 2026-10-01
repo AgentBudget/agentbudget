@@ -84,22 +84,39 @@ def test_budget_exhausted_during_track():
             session.track("b", cost=0.03)  # exceeds 0.05
 
 
-def test_wrap_unknown_model():
+def test_wrap_unknown_model(caplog):
     ledger = Ledger(budget=5.0)
-    with BudgetSession(ledger) as session:
-        response = FakeResponse("unknown-model-xyz", prompt_tokens=100, completion_tokens=50)
-        result = session.wrap(response)
-        assert result is response
-        assert session.spent == 0.0  # unknown model, no cost recorded
+    with caplog.at_level("WARNING", logger="agentbudget.session"):
+        with BudgetSession(ledger) as session:
+            response = FakeResponse("unknown-model-xyz", prompt_tokens=100, completion_tokens=50)
+            result = session.wrap(response)
+            assert result is response
+            assert session.spent == 0.0  # unknown model, no cost recorded
+    assert "no pricing found for model 'unknown-model-xyz'" in caplog.text
 
 
-def test_wrap_no_usage():
+def test_wrap_no_usage(caplog):
     ledger = Ledger(budget=5.0)
-    with BudgetSession(ledger) as session:
-        response = "plain string"
-        result = session.wrap(response)
-        assert result == "plain string"
-        assert session.spent == 0.0
+    with caplog.at_level("WARNING", logger="agentbudget.session"):
+        with BudgetSession(ledger) as session:
+            response = "plain string"
+            result = session.wrap(response)
+            assert result == "plain string"
+            assert session.spent == 0.0
+    assert "model could not be extracted" in caplog.text
+
+
+def test_wrap_no_usage_with_known_model(caplog):
+    class ResponseWithoutUsage:
+        model = "gpt-4o"
+
+    ledger = Ledger(budget=5.0)
+    with caplog.at_level("WARNING", logger="agentbudget.session"):
+        with BudgetSession(ledger) as session:
+            result = session.wrap(ResponseWithoutUsage())
+            assert isinstance(result, ResponseWithoutUsage)
+            assert session.spent == 0.0
+    assert "token usage could not be extracted" in caplog.text
 
 
 def test_report_structure():
