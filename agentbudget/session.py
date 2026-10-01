@@ -122,7 +122,14 @@ class BudgetSession:
             )
             self._ledger.record(event)
             self._check_after_record(call_key=model)
-
+        else:
+            if model is None:
+                reason = "{model} is unknown"
+            elif output_tokens is None or input_tokens is None:
+                reason = "input token or output token is 0, no usage found"
+            else:
+                reason = "pricing not found for {model!r} in pricing.json"
+            logger.warning(f"response type %s is not recognized and because of the reason: %s", type(response).__name__, reason)
         return response
 
     def track(
